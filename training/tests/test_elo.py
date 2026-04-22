@@ -75,3 +75,38 @@ def test_apply_elo_update_returns_floats() -> None:
 def test_k_factor_rejects_negative_n() -> None:
     with pytest.raises(ValueError):
         k_factor(-1)
+
+
+from progno_train.elo import context_multiplier  # noqa: E402
+
+
+def test_context_multiplier_grand_slam_bo5_final() -> None:
+    # G (1.0) * F (1.0) * BO5 (1.0) = 1.0
+    assert context_multiplier("G", "F", 5) == pytest.approx(1.0)
+
+
+def test_context_multiplier_masters_early_round_bo3() -> None:
+    # M (0.85) * R32 (0.85) * BO3 (0.90) = 0.65025
+    assert context_multiplier("M", "R32", 3) == pytest.approx(0.85 * 0.85 * 0.90)
+
+
+def test_context_multiplier_challenger_qualifier_bo3() -> None:
+    # C (0.50) * Q (0.85) * BO3 (0.90)
+    assert context_multiplier("C", "Q1", 3) == pytest.approx(0.50 * 0.85 * 0.90)
+
+
+def test_context_multiplier_unknown_level_falls_back_to_atp() -> None:
+    # Unknown level defaults to A (0.75)
+    assert context_multiplier("UNKNOWN", "R16", 3) == pytest.approx(0.75 * 0.85 * 0.90)
+
+
+@pytest.mark.parametrize(
+    ("level", "round_", "best_of"),
+    [
+        ("G", "F", 5),
+        ("M", "SF", 3),
+        ("A", "QF", 3),
+    ],
+)
+def test_context_multiplier_positive(level: str, round_: str, best_of: int) -> None:
+    assert context_multiplier(level, round_, best_of) > 0.0
