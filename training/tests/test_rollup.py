@@ -4,7 +4,7 @@ import pandas as pd
 import pytest
 
 from progno_train.elo import INITIAL_RATING
-from progno_train.rollup import PlayerElo, rollup_elo
+from progno_train.rollup import rollup_elo
 
 
 def _mk_match(

@@ -4,7 +4,6 @@ import json
 from pathlib import Path
 
 import pandas as pd
-import pytest
 
 from progno_train.artifacts import (
     write_elo_state,

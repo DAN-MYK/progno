@@ -8,7 +8,6 @@ context factors (tournament level, round, best_of) at callsites in `rollup.py`.
 
 from __future__ import annotations
 
-
 INITIAL_RATING = 1500.0
 K_BASE = 250.0
 K_OFFSET = 5.0
