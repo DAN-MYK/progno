@@ -25,6 +25,35 @@ training/artifacts/current
 .DS_Store
 Thumbs.db
 
+# AI/ML — models, training artifacts, and caches
+*.pth
+*.pt
+*.h5
+*.hdf5
+*.onnx
+*.pkl
+*.pickle
+*.safetensors
+*.pb
+*.joblib
+.huggingface/
+.cache/
+huggingface_cache/
+model_cache/
+weights/
+checkpoints/
+runs/
+logs/
+*.log
+output/
+outputs/
+wandb/
+mlruns/
+.wandb/
+.tensorboard/
+tb_logs/
+results/
+
 # Rust (for Phase 1b, safe to include now)
 app/src-tauri/target/
 app/node_modules/
