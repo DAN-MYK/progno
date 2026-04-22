@@ -15,10 +15,11 @@ training/data/manual/name_map.csv
 training/artifacts/v*/
 training/artifacts/current
 
-# IDE
+# IDE & Worktrees
 .idea/
 .vscode/
 *.swp
+.worktrees/
 
 # OS
 .DS_Store
