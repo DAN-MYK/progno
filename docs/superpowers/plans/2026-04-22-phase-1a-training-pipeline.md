@@ -17,6 +17,16 @@
 - Surface-specific ratings are **separate** (not blended): `elo_overall`, `elo_hard`, `elo_clay`, `elo_grass`. Carpet updates only `elo_overall`.
 - K-factor formula: `K(n) = 250 / (n + 5)^0.4` with multiplicative context factors (tourney level, round, best_of).
 
+## Execution Progress
+
+**✅ Completed:**
+- Task 0: Repository init (git, .gitignore, justfile, README)
+- Task 1: Python scaffold (pyproject.toml, ruff.toml, cli.py, smoke test) — including pytest config fix
+- Task 2: Score parser (parse_score, retirement detection, case-sensitive fix) — 10 tests passing
+
+**⏳ Pending:**
+- Task 3–10: Data ingestion, Elo computation, rollup, artifacts, CLI, E2E smoke test, full suite check
+
 ---
 
 ### Task 0: Initialise repository and root tooling
@@ -26,7 +36,7 @@
 - Create: `justfile`
 - Create: `README.md` (minimal)
 
-- [ ] **Step 1: Initialise git**
+- [x] **Step 1: Initialise git**
 
 Run:
 ```bash
@@ -38,7 +48,7 @@ git config user.email "dunmisha@gmail.com"
 
 Expected: `Initialized empty Git repository in /home/mykhailo_dan/apps/progno/.git/`.
 
-- [ ] **Step 2: Write `.gitignore`**
+- [x] **Step 2: Write `.gitignore`**
 
 Create `/home/mykhailo_dan/apps/progno/.gitignore`:
 
@@ -75,7 +85,7 @@ app/node_modules/
 app/dist/
 ```
 
-- [ ] **Step 3: Write `justfile`**
+- [x] **Step 3: Write `justfile`**
 
 Create `/home/mykhailo_dan/apps/progno/justfile`:
 
@@ -109,7 +119,7 @@ check:
     cd training && uv run pytest -v
 ```
 
-- [ ] **Step 4: Write `README.md`**
+- [x] **Step 4: Write `README.md`**
 
 Create `/home/mykhailo_dan/apps/progno/README.md`:
 
@@ -126,13 +136,13 @@ See:
 Phase 1a (this phase): Python training pipeline. Produces Elo artifacts consumed by the Tauri app in Phase 1b.
 ```
 
-- [ ] **Step 5: Verify `just` is installed, else instruct user**
+- [x] **Step 5: Verify `just` is installed, else instruct user**
 
 Run: `just --version`
 
 Expected: version ≥ 1.16.0. If missing, stop and tell the user to install via `cargo install just` or their package manager.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 cd /home/mykhailo_dan/apps/progno
@@ -154,7 +164,7 @@ Expected: commit created, clean working tree.
 - Create: `training/tests/test_smoke.py`
 - Create: `training/ruff.toml`
 
-- [ ] **Step 1: Create `pyproject.toml`**
+- [x] **Step 1: Create `pyproject.toml`**
 
 Create `/home/mykhailo_dan/apps/progno/training/pyproject.toml`:
 
@@ -187,7 +197,7 @@ build-backend = "hatchling.build"
 packages = ["src/progno_train"]
 ```
 
-- [ ] **Step 2: Create `ruff.toml`**
+- [x] **Step 2: Create `ruff.toml`**
 
 Create `/home/mykhailo_dan/apps/progno/training/ruff.toml`:
 
@@ -203,7 +213,7 @@ ignore = []
 quote-style = "double"
 ```
 
-- [ ] **Step 3: Create package files**
+- [x] **Step 3: Create package files**
 
 Create `/home/mykhailo_dan/apps/progno/training/src/progno_train/__init__.py` (empty):
 
@@ -252,7 +262,7 @@ if __name__ == "__main__":
 
 Create `/home/mykhailo_dan/apps/progno/training/tests/__init__.py` (empty).
 
-- [ ] **Step 4: Write smoke test**
+- [x] **Step 4: Write smoke test**
 
 Create `/home/mykhailo_dan/apps/progno/training/tests/test_smoke.py`:
 
@@ -265,7 +275,7 @@ def test_package_imports() -> None:
     assert progno_train.cli.main is not None
 ```
 
-- [ ] **Step 5: Install dependencies with uv**
+- [x] **Step 5: Install dependencies with uv**
 
 Run:
 ```bash
@@ -277,7 +287,7 @@ Expected: `.venv/` created, `uv.lock` generated, no errors.
 
 If `uv` is not installed, stop and tell the user to install per https://docs.astral.sh/uv/.
 
-- [ ] **Step 6: Run the smoke test**
+- [x] **Step 6: Run the smoke test**
 
 Run:
 ```bash
@@ -287,7 +297,7 @@ uv run pytest -v
 
 Expected: `test_smoke.py::test_package_imports PASSED`.
 
-- [ ] **Step 7: Verify ruff passes**
+- [x] **Step 7: Verify ruff passes**
 
 Run:
 ```bash
@@ -298,7 +308,7 @@ uv run ruff format --check .
 
 Expected: no issues.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 cd /home/mykhailo_dan/apps/progno
@@ -316,7 +326,7 @@ git commit -m "feat(training): scaffold Python package with uv + ruff + pytest"
 - Create: `training/src/progno_train/score.py`
 - Create: `training/tests/test_score.py`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Create `/home/mykhailo_dan/apps/progno/training/tests/test_score.py`:
 
@@ -376,7 +386,7 @@ def test_parse_score_def_treated_as_walkover() -> None:
     assert result.completed_sets == 0
 ```
 
-- [ ] **Step 2: Run test to confirm failure**
+- [x] **Step 2: Run test to confirm failure**
 
 Run:
 ```bash
@@ -386,7 +396,7 @@ uv run pytest tests/test_score.py -v
 
 Expected: all tests FAIL with `ModuleNotFoundError: No module named 'progno_train.score'`.
 
-- [ ] **Step 3: Implement `score.py`**
+- [x] **Step 3: Implement `score.py`**
 
 Create `/home/mykhailo_dan/apps/progno/training/src/progno_train/score.py`:
 
@@ -442,7 +452,7 @@ def parse_score(raw: str) -> ParsedScore:
     return ParsedScore(True, completed, winner_sets, loser_sets)
 ```
 
-- [ ] **Step 4: Run tests to confirm pass**
+- [x] **Step 4: Run tests to confirm pass**
 
 Run:
 ```bash
@@ -452,7 +462,7 @@ uv run pytest tests/test_score.py -v
 
 Expected: all 10 tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd /home/mykhailo_dan/apps/progno
