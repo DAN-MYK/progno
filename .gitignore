@@ -54,6 +54,41 @@ mlruns/
 tb_logs/
 results/
 
+# AI/LLM — system prompts and personal notes (keep docs/superpowers/plans/)
+system_prompts/
+prompts/
+system_prompt*
+*.prompt
+.claude/
+claude_context/
+claude_*.txt
+claude_*.md
+**/ai_context.md
+**/context.md
+
+# Planning and task tracking — personal, not shared
+/TODO.md
+/TODO.txt
+/NOTES.md
+/NOTES.txt
+/scratch.md
+/scratch.txt
+/.todo/
+/.plan
+/planning/
+*.todo
+*.notes
+todo.md
+todo.txt
+notes.md
+notes.txt
+
+# Keep project documentation
+!docs/
+!docs/**/*.md
+!docs/**/plans/
+!docs/**/specs/
+
 # Rust (for Phase 1b, safe to include now)
 app/src-tauri/target/
 app/node_modules/
