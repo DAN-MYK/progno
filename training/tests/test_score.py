@@ -51,3 +51,9 @@ def test_parse_score_def_treated_as_walkover() -> None:
     result = parse_score("DEF")
     assert result.is_complete is False
     assert result.completed_sets == 0
+
+
+def test_parse_score_def_dot_mid_match() -> None:
+    result = parse_score("6-4 Def.")
+    assert result.is_complete is False
+    assert result.completed_sets == 1

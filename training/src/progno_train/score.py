@@ -6,6 +6,7 @@ import re
 from dataclasses import dataclass
 
 RETIREMENT_MARKERS = ("RET", "W/O", "DEF", "Def.", "ABN")
+_RETIREMENT_MARKERS_UPPER = frozenset(m.upper() for m in RETIREMENT_MARKERS)
 SET_PATTERN = re.compile(r"^(\d+)-(\d+)(?:\([^)]*\))?$")
 
 
@@ -24,15 +25,13 @@ def parse_score(raw: str) -> ParsedScore:
     tokens = raw.strip().split()
     tokens_upper = [t.upper() for t in tokens]
 
-    is_retirement = any(t in RETIREMENT_MARKERS for t in tokens_upper)
-    set_tokens = [t for t in tokens if SET_PATTERN.match(t)]
+    is_retirement = any(t in _RETIREMENT_MARKERS_UPPER for t in tokens_upper)
+    set_matches = [m for tok in tokens if (m := SET_PATTERN.match(tok))]
 
     winner_sets = 0
     loser_sets = 0
     completed = 0
-    for tok in set_tokens:
-        m = SET_PATTERN.match(tok)
-        assert m is not None
+    for m in set_matches:
         winner_games, loser_games = int(m.group(1)), int(m.group(2))
         # Set is complete if one player has 6+ games (covers 6+ with 2-game lead or 7+ tiebreak).
         if winner_games >= 6 or loser_games >= 6:
