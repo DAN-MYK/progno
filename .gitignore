@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.pytest_cache/
+.ruff_cache/
+
+# Data — raw and staging are derived, don't commit
+training/data/raw/
+training/data/staging/
+training/data/manual/name_map.csv
+
+# Artifacts — versioned on disk, not in git
+training/artifacts/v*/
+training/artifacts/current
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Rust (for Phase 1b, safe to include now)
+app/src-tauri/target/
+app/node_modules/
+app/dist/
