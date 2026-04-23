@@ -2,15 +2,25 @@ use std::sync::Mutex;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use tauri_plugin_shell::ShellExt;
-use tauri_plugin_shell::process::CommandEvent;
+use tauri_plugin_shell::process::{CommandChild, CommandEvent};
+use reqwest::Client;
 
 pub struct SidecarState {
     pub port: Option<u16>,
+    _child: Option<CommandChild>,
+    pub client: Client,
 }
 
 impl Default for SidecarState {
     fn default() -> Self {
-        Self { port: None }
+        Self {
+            port: None,
+            _child: None,
+            client: Client::builder()
+                .timeout(std::time::Duration::from_secs(10))
+                .build()
+                .unwrap_or_default(),
+        }
     }
 }
 
@@ -48,9 +58,12 @@ pub fn spawn_sidecar(app: &tauri::AppHandle, artifacts_dir: String) {
     let handle = app.clone();
     tauri::async_runtime::spawn(async move {
         match do_spawn(&handle, &artifacts_dir).await {
-            Ok(port) => {
+            Ok((port, child)) => {
                 let state = handle.state::<Mutex<SidecarState>>();
-                state.lock().unwrap().port = Some(port);
+                if let Ok(mut s) = state.lock() {
+                    s.port = Some(port);
+                    s._child = Some(child);
+                }
                 eprintln!("[sidecar] ready on port {port}");
             }
             Err(e) => eprintln!("[sidecar] failed to start: {e}"),
@@ -58,8 +71,8 @@ pub fn spawn_sidecar(app: &tauri::AppHandle, artifacts_dir: String) {
     });
 }
 
-async fn do_spawn(app: &tauri::AppHandle, artifacts_dir: &str) -> Result<u16> {
-    let (mut rx, _child) = app
+async fn do_spawn(app: &tauri::AppHandle, artifacts_dir: &str) -> Result<(u16, CommandChild)> {
+    let (mut rx, child) = app
         .shell()
         .sidecar("progno-sidecar")?
         .args(["--artifacts-dir", artifacts_dir])
@@ -71,7 +84,7 @@ async fn do_spawn(app: &tauri::AppHandle, artifacts_dir: &str) -> Result<u16> {
                 let s = String::from_utf8_lossy(&line);
                 if let Some(port_str) = s.trim().strip_prefix("READY port=") {
                     let port: u16 = port_str.parse()?;
-                    return Ok(port);
+                    return Ok((port, child));
                 }
             }
             CommandEvent::Terminated(status) => {
@@ -83,9 +96,8 @@ async fn do_spawn(app: &tauri::AppHandle, artifacts_dir: &str) -> Result<u16> {
     Err(anyhow::anyhow!("sidecar did not emit READY"))
 }
 
-pub async fn ml_predict(port: u16, matches: Vec<MlMatchRequest>) -> Result<MlPredictResponse> {
+pub async fn ml_predict(client: &Client, port: u16, matches: Vec<MlMatchRequest>) -> Result<MlPredictResponse> {
     let url = format!("http://127.0.0.1:{port}/predict");
-    let client = reqwest::Client::new();
     let resp = client
         .post(&url)
         .json(&PredictPayload { matches })

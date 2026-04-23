@@ -173,17 +173,18 @@ pub async fn predict_with_ml(
     };
 
     // Check if sidecar is available
-    let port = sidecar_state.lock().unwrap().port;
-    if port.is_none() {
-        return Ok(elo_resp);
-    }
-    let port = port.unwrap();
+    let (port, client) = {
+        let guard = sidecar_state.lock()
+            .map_err(|e| format!("sidecar lock poisoned: {e}"))?;
+        (guard.port, guard.client.clone())
+    };
+    let Some(port) = port else { return Ok(elo_resp); };
 
     // Build ML requests from Elo predictions
     let ml_matches: Vec<MlMatchRequest> = elo_resp.predictions.iter().map(|p| {
         MlMatchRequest {
-            player_a_id: p.player_a.clone(),
-            player_b_id: p.player_b.clone(),
+            player_a_id: normalize_player_id(&p.player_a),
+            player_b_id: normalize_player_id(&p.player_b),
             surface: p.surface.clone(),
             tourney_level: "A".to_string(),
             round_: "R32".to_string(),
@@ -192,7 +193,7 @@ pub async fn predict_with_ml(
         }
     }).collect();
 
-    match ml_predict(port, ml_matches).await {
+    match ml_predict(&client, port, ml_matches).await {
         Ok(ml_resp) => {
             let enriched: Vec<PredictionResult> = elo_resp.predictions.into_iter()
                 .zip(ml_resp.predictions.into_iter())
