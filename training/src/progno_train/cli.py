@@ -74,6 +74,94 @@ def run_publish(paths: Paths, version: str) -> int:
     return 0
 
 
+def run_features(paths: Paths) -> None:
+    import json
+
+    from progno_train.features import build_all_features
+
+    logging.info("Loading match history for feature engineering...")
+    history = pd.read_parquet(paths.match_history)
+    elo_state = json.loads(paths.elo_state.read_text())
+
+    logging.info("Building features for %d matches...", len(history))
+    featurized = build_all_features(history, elo_state)
+    paths.featurized.parent.mkdir(parents=True, exist_ok=True)
+    featurized.to_parquet(paths.featurized, index=False)
+    logging.info("Featurized dataset written: %s (%d rows)", paths.featurized, len(featurized))
+
+
+def run_train(paths: Paths) -> None:
+    import subprocess
+
+    from progno_train.artifacts import write_calibration, write_model_card
+    from progno_train.train import run_walk_forward
+
+    logging.info("Running walk-forward training...")
+    model, a, b, metrics, feature_cols = run_walk_forward(paths.featurized)
+
+    logging.info("Saving model artifacts...")
+    model.save_model(str(paths.model_cbm))
+    write_calibration(a, b, paths.calibration)
+
+    try:
+        git_sha = subprocess.check_output(["git", "rev-parse", "HEAD"]).decode().strip()
+    except Exception:
+        git_sha = "unknown"
+
+    write_model_card(
+        train_years=(2005, 2022),
+        test_year=2023,
+        metrics=metrics,
+        feature_names=feature_cols,
+        git_sha=git_sha,
+        out_path=paths.model_card,
+    )
+    logging.info("Training complete. Metrics: %s", metrics)
+
+
+def run_validate(paths: Paths) -> None:
+    import json
+
+    import numpy as np
+    from catboost import CatBoostClassifier, Pool
+
+    from progno_train.train import apply_platt, get_feature_cols
+    from progno_train.validate import acceptance_gate, compute_ece, compute_log_loss
+
+    logging.info("Running validation and acceptance gate...")
+    model = CatBoostClassifier()
+    model.load_model(str(paths.model_cbm))
+
+    cal = json.loads(paths.calibration.read_text())
+    a, b = cal["a"], cal["b"]
+
+    df = pd.read_parquet(paths.featurized)
+    test_df = df[df["year"] >= 2023]
+    feature_cols = get_feature_cols(df)
+
+    pool = Pool(test_df[feature_cols].fillna(0), feature_names=feature_cols)
+    raw = model.predict_proba(pool)[:, 1]
+    cal_probs = apply_platt(raw, a, b)
+
+    y = test_df["label"].values
+    elo_probs = (test_df["elo_overall_diff"].values / 400 + 0.5).clip(0.05, 0.95)
+
+    model_ll = compute_log_loss(y, cal_probs)
+    baseline_ll = compute_log_loss(y, elo_probs)
+    ece = compute_ece(y, cal_probs)
+
+    logging.info("Model log-loss: %.4f | Elo baseline: %.4f | ECE: %.4f", model_ll, baseline_ll, ece)
+    acceptance_gate(model_ll, baseline_ll, ece)
+    logging.info("Acceptance gate: PASS")
+
+
+def run_retrain(paths: Paths, version: str) -> None:
+    run_features(paths)
+    run_train(paths)
+    run_validate(paths)
+    run_publish(paths, version)
+
+
 def main() -> int:
     _setup_logging()
     parser = argparse.ArgumentParser(prog="progno-train")
@@ -81,6 +169,11 @@ def main() -> int:
     sub.add_parser("update_data")
     sub.add_parser("ingest")
     sub.add_parser("elo")
+    sub.add_parser("features")
+    sub.add_parser("train")
+    sub.add_parser("validate")
+    retrain = sub.add_parser("retrain")
+    retrain.add_argument("--version", default="dev")
     publish = sub.add_parser("publish")
     publish.add_argument("version")
     args = parser.parse_args()
@@ -93,6 +186,18 @@ def main() -> int:
         return run_ingest(paths)
     if args.command == "elo":
         return run_elo(paths)
+    if args.command == "features":
+        run_features(paths)
+        return 0
+    if args.command == "train":
+        run_train(paths)
+        return 0
+    if args.command == "validate":
+        run_validate(paths)
+        return 0
+    if args.command == "retrain":
+        run_retrain(paths, args.version)
+        return 0
     if args.command == "publish":
         return run_publish(paths, args.version)
     return 1

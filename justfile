@@ -14,6 +14,22 @@ elo:
 publish version:
     cd training && uv run python -m progno_train.cli publish {{version}}
 
+# --- Phase 3 targets ---
+features:
+    cd training && uv run python -m progno_train.cli features
+
+train:
+    cd training && uv run python -m progno_train.cli train
+
+validate:
+    cd training && uv run python -m progno_train.cli validate
+
+retrain version:
+    cd training && uv run python -m progno_train.cli retrain --version {{version}}
+
+build-sidecar:
+    cd sidecar && uv run pyinstaller --onefile --name progno-sidecar server.py
+
 # --- Dev helpers ---
 test:
     cd training && uv run pytest -v
