@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 from catboost import CatBoostClassifier, Pool
 from sklearn.linear_model import LogisticRegression
+
+from progno_train.validate import compute_log_loss, compute_ece
 
 CAT_FEATURES = ["surface", "tourney_level", "round"]
 BURN_IN_YEAR = 2004  # data before this year used only for Elo warm-up
@@ -28,7 +32,7 @@ def walk_forward_splits(
     val_start: int = 2016,
     test_start: int = 2023,
 ) -> list[tuple[pd.DataFrame, pd.DataFrame, str]]:
-    """Yields (train, holdout, split_label) for each year from val_start onward."""
+    """Returns list of (train, holdout, split_label) for each year from val_start onward."""
     df = df[df["year"] > BURN_IN_YEAR].copy()
     splits = []
     all_years = sorted(df["year"].unique())
@@ -83,26 +87,31 @@ def get_feature_cols(df: pd.DataFrame) -> list[str]:
     return [c for c in df.columns if c not in exclude]
 
 
-def run_walk_forward(featurized_path) -> tuple:
+def run_walk_forward(featurized_path: Path) -> tuple[CatBoostClassifier, float, float, dict, list[str]]:
     """Run full walk-forward pipeline. Returns (model, a, b, metrics, feature_cols)."""
     df = pd.read_parquet(featurized_path)
+    df = df[df["year"] > BURN_IN_YEAR]  # exclude burn-in period
     feature_cols = get_feature_cols(df)
 
     cal_df = df[df["year"] == 2022]
-    final_train = df[df["year"] < 2023]
+    pre_cal_train = df[df["year"] < 2022]      # for calibration model
+    final_train = df[df["year"] < 2023]         # for deployment model
 
-    model = train_catboost(final_train, cal_df, feature_cols)
-
+    # Calibration model: trained on <2022, predictions on 2022 are truly out-of-sample
+    cal_model = train_catboost(pre_cal_train, cal_df, feature_cols)
     cal_pool = Pool(cal_df[feature_cols].fillna(0), feature_names=feature_cols)
-    raw_cal = model.predict_proba(cal_pool)[:, 1]
+    raw_cal = cal_model.predict_proba(cal_pool)[:, 1]
     a, b = fit_platt(raw_cal, cal_df["label"].values)
 
+    # Final model: trained on <2023 (includes 2022 for extra signal)
+    model = train_catboost(final_train, cal_df, feature_cols)
+
+    # Evaluate on test years (2023+)
     test_df = df[df["year"] >= 2023]
     test_pool = Pool(test_df[feature_cols].fillna(0), feature_names=feature_cols)
     raw_test = model.predict_proba(test_pool)[:, 1]
     cal_test = apply_platt(raw_test, a, b)
 
-    from progno_train.validate import compute_log_loss, compute_ece
     metrics = {
         "logloss_catboost": compute_log_loss(test_df["label"].values, cal_test),
         "ece_catboost": compute_ece(test_df["label"].values, cal_test),
