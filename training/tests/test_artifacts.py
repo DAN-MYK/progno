@@ -4,10 +4,13 @@ import json
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 from progno_train.artifacts import (
+    write_calibration,
     write_elo_state,
     write_match_history,
+    write_model_card,
     write_players,
 )
 from progno_train.rollup import PlayerElo
@@ -169,3 +172,48 @@ def test_write_match_history_projects_expected_columns(tmp_path: Path) -> None:
     }
     assert set(df.columns) == expected
     assert "extra_column_ignored" not in df.columns
+
+
+def test_write_calibration_round_trips(tmp_path: Path) -> None:
+    out = tmp_path / "calibration.json"
+    write_calibration(a=1.23, b=-0.45, out_path=out)
+    content = json.loads(out.read_text())
+    assert content["a"] == pytest.approx(1.23)
+    assert content["b"] == pytest.approx(-0.45)
+
+
+def test_write_calibration_creates_parent_dirs(tmp_path: Path) -> None:
+    out = tmp_path / "nested" / "deep" / "calibration.json"
+    write_calibration(a=0.0, b=1.0, out_path=out)
+    assert out.exists()
+
+
+def test_write_model_card_contains_required_keys(tmp_path: Path) -> None:
+    out = tmp_path / "model_card.json"
+    write_model_card(
+        train_years=(2000, 2022),
+        test_year=2023,
+        metrics={"log_loss": 0.65, "ece": 0.03},
+        feature_names=["elo_overall", "surface"],
+        git_sha="abc1234",
+        out_path=out,
+    )
+    content = json.loads(out.read_text())
+    for key in ("train_years", "test_year", "metrics", "feature_names", "git_sha", "generated_at"):
+        assert key in content, f"missing key: {key}"
+    assert content["train_years"] == [2000, 2022]
+    assert content["test_year"] == 2023
+    assert content["git_sha"] == "abc1234"
+
+
+def test_write_model_card_creates_parent_dirs(tmp_path: Path) -> None:
+    out = tmp_path / "nested" / "model_card.json"
+    write_model_card(
+        train_years=(2000, 2022),
+        test_year=2023,
+        metrics={},
+        feature_names=[],
+        git_sha="deadbeef",
+        out_path=out,
+    )
+    assert out.exists()

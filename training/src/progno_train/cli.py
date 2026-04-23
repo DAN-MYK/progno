@@ -36,7 +36,7 @@ def run_ingest(paths: Paths) -> int:
         return 2
     log.info("ingesting %d CSV files", len(csvs))
     df = ingest_sackmann_csv(csvs)
-    out = paths.data_staging / "matches_clean.parquet"
+    out = paths.matches_clean
     out.parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(out, index=False)
     log.info("wrote %d rows to %s", len(df), out)
@@ -44,7 +44,7 @@ def run_ingest(paths: Paths) -> int:
 
 
 def run_elo(paths: Paths) -> int:
-    staging = paths.data_staging / "matches_clean.parquet"
+    staging = paths.matches_clean
     if not staging.exists():
         log.error("no staging parquet at %s; run ingest first", staging)
         return 2
@@ -60,9 +60,9 @@ def run_elo(paths: Paths) -> int:
     ]).drop_duplicates("id")
     player_names = {int(row.id): row.name.split()[-1].lower() for row in all_names.itertuples()}
     paths.artifacts.mkdir(parents=True, exist_ok=True)
-    write_elo_state(state, paths.artifacts / "elo_state.json", data_as_of=data_as_of, player_names=player_names)
-    write_players(matches, paths.artifacts / "players.parquet")
-    write_match_history(matches, paths.artifacts / "match_history.parquet")
+    write_elo_state(state, paths.elo_state, data_as_of=data_as_of, player_names=player_names)
+    write_players(matches, paths.players)
+    write_match_history(matches, paths.match_history)
     log.info("artifacts written to %s", paths.artifacts)
     return 0
 
