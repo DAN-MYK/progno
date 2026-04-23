@@ -79,15 +79,22 @@ def run_features(paths: Paths) -> None:
 
     from progno_train.features import build_all_features
 
-    logging.info("Loading match history for feature engineering...")
+    if not paths.match_history.exists():
+        log.error("match_history.parquet not found at %s — run 'just elo' first", paths.match_history)
+        raise SystemExit(2)
+    if not paths.elo_state.exists():
+        log.error("elo_state.json not found at %s — run 'just elo' first", paths.elo_state)
+        raise SystemExit(2)
+
+    log.info("Loading match history for feature engineering...")
     history = pd.read_parquet(paths.match_history)
     elo_state = json.loads(paths.elo_state.read_text())
 
-    logging.info("Building features for %d matches...", len(history))
+    log.info("Building features for %d matches...", len(history))
     featurized = build_all_features(history, elo_state)
     paths.featurized.parent.mkdir(parents=True, exist_ok=True)
     featurized.to_parquet(paths.featurized, index=False)
-    logging.info("Featurized dataset written: %s (%d rows)", paths.featurized, len(featurized))
+    log.info("Featurized dataset written: %s (%d rows)", paths.featurized, len(featurized))
 
 
 def run_train(paths: Paths) -> None:
@@ -96,15 +103,15 @@ def run_train(paths: Paths) -> None:
     from progno_train.artifacts import write_calibration, write_model_card
     from progno_train.train import run_walk_forward
 
-    logging.info("Running walk-forward training...")
+    log.info("Running walk-forward training...")
     model, a, b, metrics, feature_cols = run_walk_forward(paths.featurized)
 
-    logging.info("Saving model artifacts...")
+    log.info("Saving model artifacts...")
     model.save_model(str(paths.model_cbm))
     write_calibration(a, b, paths.calibration)
 
     try:
-        git_sha = subprocess.check_output(["git", "rev-parse", "HEAD"]).decode().strip()
+        git_sha = subprocess.check_output(["git", "rev-parse", "HEAD"], timeout=5).decode().strip()
     except Exception:
         git_sha = "unknown"
 
@@ -116,7 +123,7 @@ def run_train(paths: Paths) -> None:
         git_sha=git_sha,
         out_path=paths.model_card,
     )
-    logging.info("Training complete. Metrics: %s", metrics)
+    log.info("Training complete. Metrics: %s", metrics)
 
 
 def run_validate(paths: Paths) -> None:
@@ -128,7 +135,17 @@ def run_validate(paths: Paths) -> None:
     from progno_train.train import apply_platt, get_feature_cols
     from progno_train.validate import acceptance_gate, compute_ece, compute_log_loss
 
-    logging.info("Running validation and acceptance gate...")
+    if not paths.model_cbm.exists():
+        log.error("model.cbm not found at %s — run 'just train' first", paths.model_cbm)
+        raise SystemExit(2)
+    if not paths.calibration.exists():
+        log.error("calibration.json not found at %s — run 'just train' first", paths.calibration)
+        raise SystemExit(2)
+    if not paths.featurized.exists():
+        log.error("featurized dataset not found at %s — run 'just features' first", paths.featurized)
+        raise SystemExit(2)
+
+    log.info("Running validation and acceptance gate...")
     model = CatBoostClassifier()
     model.load_model(str(paths.model_cbm))
 
@@ -144,22 +161,24 @@ def run_validate(paths: Paths) -> None:
     cal_probs = apply_platt(raw, a, b)
 
     y = test_df["label"].values
-    elo_probs = (test_df["elo_overall_diff"].values / 400 + 0.5).clip(0.05, 0.95)
+    elo_probs = 1.0 / (1.0 + 10.0 ** (-test_df["elo_overall_diff"].values / 400.0))
 
     model_ll = compute_log_loss(y, cal_probs)
     baseline_ll = compute_log_loss(y, elo_probs)
     ece = compute_ece(y, cal_probs)
 
-    logging.info("Model log-loss: %.4f | Elo baseline: %.4f | ECE: %.4f", model_ll, baseline_ll, ece)
+    log.info("Model log-loss: %.4f | Elo baseline: %.4f | ECE: %.4f", model_ll, baseline_ll, ece)
     acceptance_gate(model_ll, baseline_ll, ece)
-    logging.info("Acceptance gate: PASS")
+    log.info("Acceptance gate: PASS")
 
 
 def run_retrain(paths: Paths, version: str) -> None:
+    log.info("Starting retrain pipeline...")
     run_features(paths)
     run_train(paths)
     run_validate(paths)
     run_publish(paths, version)
+    log.info("Retrain pipeline complete")
 
 
 def main() -> int:
