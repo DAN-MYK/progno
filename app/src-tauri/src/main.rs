@@ -23,5 +23,6 @@ fn main() {
             commands::get_data_as_of,
         ])
         .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .map_err(|e| eprintln!("Failed to run Tauri: {}", e))
+        .ok();
 }
