@@ -16,6 +16,8 @@ def _player_matches_before(
     as_of_date: pd.Timestamp,
 ) -> pd.DataFrame:
     """All completed matches for player_id strictly before as_of_date."""
+    if history.empty or "winner_id" not in history.columns:
+        return pd.DataFrame()
     won_mask = (history["winner_id"] == player_id) & (history["tourney_date"] < as_of_date) & history["is_complete"]
     lost_mask = (history["loser_id"] == player_id) & (history["tourney_date"] < as_of_date) & history["is_complete"]
 
@@ -134,6 +136,9 @@ def h2h_score(
     prior_mean: float = 0.5,
 ) -> tuple[float, int]:
     """Shrinkage H2H win rate for A vs B."""
+    if history.empty or "winner_id" not in history.columns:
+        shrunk = prior_mean
+        return float(shrunk), 0
     mask = (
         (
             ((history["winner_id"] == player_a_id) & (history["loser_id"] == player_b_id)) |
