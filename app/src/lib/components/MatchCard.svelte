@@ -1,10 +1,49 @@
 <script lang="ts">
-  import type { Prediction } from '../stores'
+  import type { Prediction, KellyResult } from '../stores'
+  import { bankroll, kelly_fraction } from '../stores'
+  import { invoke } from '@tauri-apps/api/core'
 
   export let prediction: Prediction
 
+  let odds: number | null = null
+  let kellyResult: KellyResult | null = null
+  let loading = false
+  let error: string | null = null
+
   const probA = Math.round(prediction.prob_a_wins * 1000) / 10
   const probB = Math.round(prediction.prob_b_wins * 1000) / 10
+
+  async function onOddsChange() {
+    if (!odds || odds <= 1) {
+      kellyResult = null
+      error = null
+      return
+    }
+
+    loading = true
+    error = null
+
+    try {
+      const result = await invoke<KellyResult>('calculate_kelly', {
+        request: {
+          model_prob: prediction.prob_a_wins,
+          decimal_odds: odds,
+          bankroll: $bankroll,
+          kelly_fraction: $kelly_fraction,
+        },
+      })
+      kellyResult = result
+    } catch (e) {
+      error = `Kelly calculation failed: ${e}`
+      kellyResult = null
+    } finally {
+      loading = false
+    }
+  }
+
+  $: if (odds) {
+    onOddsChange()
+  }
 </script>
 
 <div class="p-6 border-b border-gray-100 hover:bg-gray-50">
@@ -41,7 +80,60 @@
     </div>
   </div>
 
+  <div class="mt-4 p-4 bg-gray-50 rounded">
+    <label class="text-xs font-semibold text-gray-600 block mb-2">
+      Bookmaker Odds (decimal)
+    </label>
+    <input
+      type="number"
+      bind:value={odds}
+      placeholder="e.g. 2.50"
+      min="1"
+      step="0.01"
+      class="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+    />
+  </div>
+
+  {#if error}
+    <div class="mt-2 text-xs text-red-600">{error}</div>
+  {/if}
+
+  {#if kellyResult}
+    <div class="mt-4 p-4 bg-blue-50 rounded space-y-2">
+      <div class="flex justify-between text-xs">
+        <span class="text-gray-700">Implied Prob:</span>
+        <span class="font-semibold">{Math.round(kellyResult.implied_prob * 1000) / 10}%</span>
+      </div>
+      <div
+        class="flex justify-between text-xs"
+        class:text-green-700={kellyResult.edge > 0}
+        class:text-red-700={kellyResult.edge < 0}
+      >
+        <span>Edge:</span>
+        <span class="font-semibold">
+          {kellyResult.edge > 0 ? '+' : ''}{Math.round(kellyResult.edge * 1000) / 10}%
+        </span>
+      </div>
+      <div class="flex justify-between text-xs pt-2 border-t border-blue-200">
+        <span class="font-medium">Stake ({Math.round($kelly_fraction * 100)}× Kelly):</span>
+        <span
+          class="font-bold"
+          class:text-blue-600={kellyResult.stake > 0}
+          class:text-gray-400={kellyResult.stake === 0}
+        >
+          ${Math.round(kellyResult.stake * 100) / 100}
+        </span>
+      </div>
+    </div>
+  {/if}
+
   <div class="text-xs text-gray-500 mt-4">
     Elo: {prediction.player_a} {Math.round(prediction.elo_a_overall)} vs {Math.round(prediction.elo_b_overall)}
   </div>
 </div>
+
+<style>
+  input {
+    font-size: 14px;
+  }
+</style>
