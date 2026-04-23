@@ -63,6 +63,13 @@ pub fn get_data_as_of(state: &Value) -> String {
         .to_string()
 }
 
+/// Load elo_state.json for a specific tour from artifacts/{tour}/elo_state.json
+/// relative to the binary location.
+pub fn load_elo_state_for_tour(tour: &str) -> Result<serde_json::Value, String> {
+    let path = PathBuf::from(format!("artifacts/{}/elo_state.json", tour));
+    load_elo_state(path.to_str().unwrap_or("elo_state.json"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
