@@ -6,6 +6,7 @@
 mod artifacts;
 mod commands;
 mod elo;
+mod kelly;
 mod parser;
 mod state;
 
