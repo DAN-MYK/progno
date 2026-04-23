@@ -39,7 +39,7 @@
     placeholder={$selectedTour === 'wta'
       ? 'Swiatek vs Sabalenka - Clay\nGauff vs Rybakina - Hard'
       : 'Alcaraz vs Sinner - Clay\nDjokovic vs Zverev - Hard'}
-  />
+  ></textarea>
   <button
     onclick={handleParse}
     disabled={$loading}
