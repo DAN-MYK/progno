@@ -3,16 +3,52 @@ default:
 
 # --- Phase 1a targets ---
 update-data:
-    cd training && uv run python -m progno_train.cli update_data
+    bash training/scripts/fetch_sackmann.sh
+    bash training/scripts/fetch_sackmann_wta.sh
 
 ingest:
-    cd training && uv run python -m progno_train.cli ingest
+    cd training && uv run python -m progno_train.cli --tour atp ingest
 
 elo:
-    cd training && uv run python -m progno_train.cli elo
+    cd training && uv run python -m progno_train.cli --tour atp elo
 
 publish version:
-    cd training && uv run python -m progno_train.cli publish {{version}}
+    cd training && uv run python -m progno_train.cli --tour atp publish {{version}}
+
+# --- Phase 3 targets (ATP) ---
+features:
+    cd training && uv run python -m progno_train.cli --tour atp features
+
+train:
+    cd training && uv run python -m progno_train.cli --tour atp train
+
+validate:
+    cd training && uv run python -m progno_train.cli --tour atp validate
+
+retrain version:
+    cd training && uv run python -m progno_train.cli --tour atp retrain --version {{version}}
+
+build-sidecar:
+    cd sidecar && bash build.sh
+
+# --- Phase 4 targets (WTA) ---
+ingest-wta:
+    cd training && uv run python -m progno_train.cli --tour wta ingest
+
+elo-wta:
+    cd training && uv run python -m progno_train.cli --tour wta elo
+
+features-wta:
+    cd training && uv run python -m progno_train.cli --tour wta features
+
+train-wta:
+    cd training && uv run python -m progno_train.cli --tour wta train
+
+validate-wta:
+    cd training && uv run python -m progno_train.cli --tour wta validate
+
+retrain-wta version:
+    cd training && uv run python -m progno_train.cli --tour wta retrain --version {{version}}
 
 # --- Dev helpers ---
 test:
