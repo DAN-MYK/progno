@@ -12,13 +12,7 @@ fn normalize_surface(s: &str) -> String {
         "hard" => "Hard".to_string(),
         "clay" => "Clay".to_string(),
         "grass" => "Grass".to_string(),
-        other => {
-            if other.is_empty() {
-                "Hard".to_string()
-            } else {
-                other.to_string()
-            }
-        }
+        _ => "Hard".to_string(),
     }
 }
 
@@ -32,11 +26,11 @@ pub fn parse_match_text(text: &str) -> Result<Vec<ParsedMatch>, String> {
     let lines: Vec<&str> = text.lines().filter(|l| !l.trim().is_empty()).collect();
     let mut matches = Vec::new();
 
+    let vs_pattern = Regex::new(r"(.+?)\s+(?:vs|v\.?|-)\s+(.+?)(?:\s*-\s*(.+?))?$")
+        .map_err(|e| format!("Regex error: {}", e))?;
+
     for line in lines {
         let line = line.trim();
-
-        let vs_pattern = Regex::new(r"(.+?)\s+(?:vs|v\.?|-)\s+(.+?)(?:\s*-\s*(.+?))?$")
-            .map_err(|e| format!("Regex error: {}", e))?;
 
         if let Some(caps) = vs_pattern.captures(line) {
             let player_a = caps.get(1).map(|m| m.as_str()).unwrap_or("").trim().to_string();
