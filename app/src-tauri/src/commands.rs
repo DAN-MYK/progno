@@ -32,6 +32,9 @@ pub struct PredictionResult {
     pub prob_b_wins: f64,
     pub elo_a_overall: f64,
     pub elo_b_overall: f64,
+    // Phase 3: ML model results (None when sidecar is unavailable)
+    pub ml_prob_a_wins: Option<f64>,
+    pub confidence_flag: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -140,7 +143,72 @@ fn predict_match(m: &ParsedMatch, state: &serde_json::Value) -> Result<Predictio
         prob_b_wins: 1.0 - prob_a,
         elo_a_overall,
         elo_b_overall,
+        ml_prob_a_wins: None,
+        confidence_flag: None,
     })
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct MlPredictRequest {
+    pub text: String,
+    pub tourney_date: String,
+}
+
+#[cfg(not(test))]
+#[tauri::command]
+pub async fn predict_with_ml(
+    request: MlPredictRequest,
+    app_state: tauri::State<'_, AppState>,
+    sidecar_state: tauri::State<'_, std::sync::Mutex<crate::sidecar::SidecarState>>,
+) -> Result<PredictResponse, String> {
+    use crate::sidecar::{MlMatchRequest, ml_predict};
+
+    // First get Elo predictions
+    let elo_resp = {
+        let guard = app_state.elo_state.lock().unwrap();
+        match &*guard {
+            None => return Err("Elo data not loaded".to_string()),
+            Some(elo) => predict_text(&request.text, elo),
+        }
+    };
+
+    // Check if sidecar is available
+    let port = sidecar_state.lock().unwrap().port;
+    if port.is_none() {
+        return Ok(elo_resp);
+    }
+    let port = port.unwrap();
+
+    // Build ML requests from Elo predictions
+    let ml_matches: Vec<MlMatchRequest> = elo_resp.predictions.iter().map(|p| {
+        MlMatchRequest {
+            player_a_id: p.player_a.clone(),
+            player_b_id: p.player_b.clone(),
+            surface: p.surface.clone(),
+            tourney_level: "A".to_string(),
+            round_: "R32".to_string(),
+            best_of: 3,
+            tourney_date: request.tourney_date.clone(),
+        }
+    }).collect();
+
+    match ml_predict(port, ml_matches).await {
+        Ok(ml_resp) => {
+            let enriched: Vec<PredictionResult> = elo_resp.predictions.into_iter()
+                .zip(ml_resp.predictions.into_iter())
+                .map(|(mut elo_pred, ml_pred)| {
+                    elo_pred.ml_prob_a_wins = Some(ml_pred.prob_a_wins);
+                    elo_pred.confidence_flag = Some(ml_pred.confidence_flag);
+                    elo_pred
+                })
+                .collect();
+            Ok(PredictResponse { predictions: enriched, ..elo_resp })
+        }
+        Err(e) => {
+            eprintln!("[ml] predict failed: {e}, falling back to Elo");
+            Ok(elo_resp)
+        }
+    }
 }
 
 pub fn calculate_kelly_impl(req: KellyRequest) -> Result<KellyResult, String> {
