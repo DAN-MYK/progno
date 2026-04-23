@@ -10,7 +10,19 @@ export interface Prediction {
   elo_b_overall: number
 }
 
+export interface KellyResult {
+  implied_prob: number
+  edge: number
+  full_kelly: number
+  fractional_kelly: number
+  stake: number
+}
+
 export const predictions = writable<Prediction[]>([])
 export const loading = writable(false)
 export const error = writable<string | null>(null)
 export const dataAsOf = writable('unknown')
+
+// Phase 2: Kelly settings
+export const bankroll = writable(1000) // USD, default $1000
+export const kelly_fraction = writable(0.25) // default 0.25×
