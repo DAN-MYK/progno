@@ -32,6 +32,8 @@ pub struct PredictionResult {
     pub prob_b_wins: f64,
     pub elo_a_overall: f64,
     pub elo_b_overall: f64,
+    pub ml_prob_a_wins: Option<f64>,
+    pub confidence_flag: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -41,17 +43,14 @@ pub struct PredictResponse {
     pub error: Option<String>,
 }
 
-/// Core prediction logic — separated for testability.
 pub fn predict_text(text: &str, elo_state: &serde_json::Value) -> PredictResponse {
     let matches = match parse_match_text(text) {
         Ok(m) => m,
-        Err(e) => {
-            return PredictResponse {
-                predictions: vec![],
-                data_as_of: "unknown".to_string(),
-                error: Some(e),
-            }
-        }
+        Err(e) => return PredictResponse {
+            predictions: vec![],
+            data_as_of: "unknown".to_string(),
+            error: Some(e),
+        },
     };
 
     let data_as_of = get_data_as_of(elo_state);
@@ -60,9 +59,7 @@ pub fn predict_text(text: &str, elo_state: &serde_json::Value) -> PredictRespons
     for m in matches {
         match predict_match(&m, elo_state) {
             Ok(pred) => predictions.push(pred),
-            Err(e) => {
-                eprintln!("Failed to predict match {} vs {}: {}", m.player_a, m.player_b, e);
-            }
+            Err(e) => eprintln!("Failed to predict {} vs {}: {}", m.player_a, m.player_b, e),
         }
     }
 
@@ -74,37 +71,108 @@ pub fn predict_text(text: &str, elo_state: &serde_json::Value) -> PredictRespons
     PredictResponse { predictions, data_as_of, error }
 }
 
-/// Parse match text and compute Elo predictions using loaded AppState.
 #[cfg(not(test))]
 #[tauri::command]
-pub fn parse_and_predict(text: String, app_state: tauri::State<AppState>) -> PredictResponse {
-    let guard = app_state.elo_state.lock().unwrap();
-    match &*guard {
+pub fn parse_and_predict(
+    text: String,
+    tour: String,
+    app_state: tauri::State<AppState>,
+) -> PredictResponse {
+    let elo = match tour.as_str() {
+        "wta" => app_state.elo_wta.lock().unwrap(),
+        _ => app_state.elo_atp.lock().unwrap(),
+    };
+    match &*elo {
         None => PredictResponse {
             predictions: vec![],
             data_as_of: "unknown".to_string(),
-            error: Some("Elo data not loaded. Run 'just elo' first.".to_string()),
+            error: Some(format!("Elo data for {} not loaded. Run 'just elo' first.", tour.to_uppercase())),
         },
-        Some(elo) => predict_text(&text, elo),
+        Some(state) => predict_text(&text, state),
     }
 }
 
-/// Get the data-as-of date for the loaded Elo model.
 #[cfg(not(test))]
 #[tauri::command]
-pub fn get_data_as_of_cmd(app_state: tauri::State<AppState>) -> String {
-    let guard = app_state.elo_state.lock().unwrap();
-    match &*guard {
+pub fn get_data_as_of_cmd(tour: String, app_state: tauri::State<AppState>) -> String {
+    let elo = match tour.as_str() {
+        "wta" => app_state.elo_wta.lock().unwrap(),
+        _ => app_state.elo_atp.lock().unwrap(),
+    };
+    match &*elo {
         None => "unknown".to_string(),
-        Some(elo) => get_data_as_of(elo),
+        Some(state) => get_data_as_of(state),
     }
 }
 
-/// Calculate Kelly fraction, fractional Kelly, and stake for a given match.
 #[cfg(not(test))]
 #[tauri::command]
 pub fn calculate_kelly(request: KellyRequest) -> Result<KellyResult, String> {
     calculate_kelly_impl(request)
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct MlPredictRequest {
+    pub text: String,
+    pub tour: String,
+    pub tourney_date: String,
+}
+
+#[cfg(not(test))]
+#[tauri::command]
+pub async fn predict_with_ml(
+    request: MlPredictRequest,
+    app_state: tauri::State<'_, AppState>,
+    sidecar_state: tauri::State<'_, std::sync::Mutex<crate::sidecar::SidecarState>>,
+) -> Result<PredictResponse, String> {
+    use crate::sidecar::{MlMatchRequest, ml_predict};
+
+    // Compute elo_resp and drop the MutexGuard before any await points
+    let elo_resp = {
+        let elo_guard = match request.tour.as_str() {
+            "wta" => app_state.elo_wta.lock().unwrap(),
+            _ => app_state.elo_atp.lock().unwrap(),
+        };
+        match &*elo_guard {
+            None => return Err(format!("Elo data for {} not loaded", request.tour.to_uppercase())),
+            Some(elo) => predict_text(&request.text, elo),
+        }
+    }; // elo_guard dropped here
+
+    let port = sidecar_state.lock().unwrap().port;
+    if port.is_none() {
+        return Ok(elo_resp);
+    }
+    let port = port.unwrap();
+
+    let ml_matches: Vec<MlMatchRequest> = elo_resp.predictions.iter().map(|p| MlMatchRequest {
+        tour: request.tour.clone(),
+        player_a_id: normalize_player_id(&p.player_a),
+        player_b_id: normalize_player_id(&p.player_b),
+        surface: p.surface.clone(),
+        tourney_level: "A".to_string(),
+        round_: "R32".to_string(),
+        best_of: 3,
+        tourney_date: request.tourney_date.clone(),
+    }).collect();
+
+    match ml_predict(port, ml_matches).await {
+        Ok(ml_resp) => {
+            let enriched: Vec<PredictionResult> = elo_resp.predictions.into_iter()
+                .zip(ml_resp.predictions.into_iter())
+                .map(|(mut elo_pred, ml_pred)| {
+                    elo_pred.ml_prob_a_wins = Some(ml_pred.prob_a_wins);
+                    elo_pred.confidence_flag = Some(ml_pred.confidence_flag);
+                    elo_pred
+                })
+                .collect();
+            Ok(PredictResponse { predictions: enriched, ..elo_resp })
+        }
+        Err(e) => {
+            eprintln!("[ml] predict failed: {e}, falling back to Elo");
+            Ok(elo_resp)
+        }
+    }
 }
 
 fn normalize_player_id(name: &str) -> String {
@@ -126,12 +194,9 @@ fn resolve_player(
 fn predict_match(m: &ParsedMatch, state: &serde_json::Value) -> Result<PredictionResult, String> {
     let id_a = normalize_player_id(&m.player_a);
     let id_b = normalize_player_id(&m.player_b);
-
     let (elo_a_overall, elo_a_composite) = resolve_player(state, &id_a, &m.surface)?;
     let (elo_b_overall, elo_b_composite) = resolve_player(state, &id_b, &m.surface)?;
-
     let prob_a = expected_probability(elo_a_composite, elo_b_composite);
-
     Ok(PredictionResult {
         player_a: m.player_a.clone(),
         player_b: m.player_b.clone(),
@@ -140,6 +205,8 @@ fn predict_match(m: &ParsedMatch, state: &serde_json::Value) -> Result<Predictio
         prob_b_wins: 1.0 - prob_a,
         elo_a_overall,
         elo_b_overall,
+        ml_prob_a_wins: None,
+        confidence_flag: None,
     })
 }
 
@@ -149,14 +216,7 @@ pub fn calculate_kelly_impl(req: KellyRequest) -> Result<KellyResult, String> {
     let full_kelly = kelly::full_kelly_fraction(req.model_prob, req.decimal_odds);
     let fractional_kelly = kelly::fractional_kelly(req.model_prob, req.decimal_odds, req.kelly_fraction);
     let stake = kelly::stake_from_kelly(req.bankroll, fractional_kelly);
-
-    Ok(KellyResult {
-        implied_prob,
-        edge,
-        full_kelly,
-        fractional_kelly,
-        stake,
-    })
+    Ok(KellyResult { implied_prob, edge, full_kelly, fractional_kelly, stake })
 }
 
 #[cfg(test)]
