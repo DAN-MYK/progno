@@ -2,8 +2,26 @@ use serde::{Deserialize, Serialize};
 use crate::artifacts::{get_data_as_of, get_player_elo, get_player_surface_matches};
 use crate::elo::{expected_probability, surface_elo};
 use crate::parser::{parse_match_text, ParsedMatch};
+use crate::kelly;
 #[cfg(not(test))]
 use crate::state::AppState;
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct KellyRequest {
+    pub model_prob: f64,
+    pub decimal_odds: f64,
+    pub bankroll: f64,
+    pub kelly_fraction: f64,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct KellyResult {
+    pub implied_prob: f64,
+    pub edge: f64,
+    pub full_kelly: f64,
+    pub fractional_kelly: f64,
+    pub stake: f64,
+}
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct PredictionResult {
@@ -82,6 +100,13 @@ pub fn get_data_as_of_cmd(app_state: tauri::State<AppState>) -> String {
     }
 }
 
+/// Calculate Kelly fraction, fractional Kelly, and stake for a given match.
+#[cfg(not(test))]
+#[tauri::command]
+pub fn calculate_kelly(request: KellyRequest) -> Result<KellyResult, String> {
+    calculate_kelly_impl(request)
+}
+
 fn normalize_player_id(name: &str) -> String {
     name.replace(' ', "_").to_lowercase()
 }
@@ -118,9 +143,25 @@ fn predict_match(m: &ParsedMatch, state: &serde_json::Value) -> Result<Predictio
     })
 }
 
+pub fn calculate_kelly_impl(req: KellyRequest) -> Result<KellyResult, String> {
+    let implied_prob = kelly::implied_probability(req.decimal_odds);
+    let edge = kelly::edge(req.model_prob, req.decimal_odds);
+    let full_kelly = kelly::full_kelly_fraction(req.model_prob, req.decimal_odds);
+    let fractional_kelly = kelly::fractional_kelly(req.model_prob, req.decimal_odds, req.kelly_fraction);
+    let stake = kelly::stake_from_kelly(req.bankroll, fractional_kelly);
+
+    Ok(KellyResult {
+        implied_prob,
+        edge,
+        full_kelly,
+        fractional_kelly,
+        stake,
+    })
+}
+
 #[cfg(test)]
 mod tests {
-    use super::predict_text;
+    use super::*;
     use serde_json::json;
 
     fn elo_state_two_players() -> serde_json::Value {
@@ -210,5 +251,42 @@ mod tests {
         let state = elo_state_two_players();
         let response = predict_text("Alcaraz vs Sinner", &state);
         assert_eq!(response.data_as_of, "2026-04-20");
+    }
+
+    #[test]
+    fn test_kelly_request_struct() {
+        let req = KellyRequest {
+            model_prob: 0.6,
+            decimal_odds: 2.0,
+            bankroll: 1000.0,
+            kelly_fraction: 0.25,
+        };
+        assert_eq!(req.model_prob, 0.6);
+    }
+
+    #[test]
+    fn test_calculate_kelly_response() {
+        let req = KellyRequest {
+            model_prob: 0.6,
+            decimal_odds: 2.0,
+            bankroll: 1000.0,
+            kelly_fraction: 0.25,
+        };
+        let result = calculate_kelly_impl(req).unwrap();
+        assert!((result.edge - 0.1).abs() < 0.001);
+        assert!((result.implied_prob - 0.5).abs() < 0.001);
+        assert!((result.stake - 50.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_calculate_kelly_negative_edge() {
+        let req = KellyRequest {
+            model_prob: 0.3,
+            decimal_odds: 2.0,
+            bankroll: 1000.0,
+            kelly_fraction: 0.25,
+        };
+        let result = calculate_kelly_impl(req).unwrap();
+        assert_eq!(result.stake, 0.0);
     }
 }

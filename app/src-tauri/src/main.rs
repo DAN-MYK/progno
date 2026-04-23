@@ -29,6 +29,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             commands::parse_and_predict,
             commands::get_data_as_of_cmd,
+            commands::calculate_kelly,
         ])
         .run(tauri::generate_context!())
         .map_err(|e| eprintln!("Failed to run Tauri: {}", e))
