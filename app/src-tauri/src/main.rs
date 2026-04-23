@@ -20,7 +20,7 @@ fn main() {
         .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![
             commands::parse_and_predict,
-            commands::get_data_as_of,
+            commands::get_data_as_of_cmd,
         ])
         .run(tauri::generate_context!())
         .map_err(|e| eprintln!("Failed to run Tauri: {}", e))
