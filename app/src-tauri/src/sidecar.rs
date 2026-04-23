@@ -6,10 +6,11 @@ use tauri_plugin_shell::process::CommandEvent;
 
 pub struct SidecarState {
     pub port: Option<u16>,
+    pub child: Option<tauri_plugin_shell::process::CommandChild>,
 }
 
 impl Default for SidecarState {
-    fn default() -> Self { Self { port: None } }
+    fn default() -> Self { Self { port: None, child: None } }
 }
 
 #[derive(Serialize)]
@@ -47,9 +48,11 @@ pub fn spawn_sidecar(app: &tauri::AppHandle, artifacts_root: String) {
     let handle = app.clone();
     tauri::async_runtime::spawn(async move {
         match do_spawn(&handle, &artifacts_root).await {
-            Ok(port) => {
+            Ok((port, child)) => {
                 let state = handle.state::<Mutex<SidecarState>>();
-                state.lock().unwrap().port = Some(port);
+                let mut guard = state.lock().unwrap();
+                guard.port = Some(port);
+                guard.child = Some(child);
                 eprintln!("[sidecar] ready on port {port}");
             }
             Err(e) => eprintln!("[sidecar] failed to start: {e}"),
@@ -57,8 +60,8 @@ pub fn spawn_sidecar(app: &tauri::AppHandle, artifacts_root: String) {
     });
 }
 
-async fn do_spawn(app: &tauri::AppHandle, artifacts_root: &str) -> anyhow::Result<u16> {
-    let (mut rx, _child) = app
+async fn do_spawn(app: &tauri::AppHandle, artifacts_root: &str) -> anyhow::Result<(u16, tauri_plugin_shell::process::CommandChild)> {
+    let (mut rx, child) = app
         .shell()
         .sidecar("progno-sidecar")?
         .args(["--artifacts-root", artifacts_root])
@@ -69,7 +72,7 @@ async fn do_spawn(app: &tauri::AppHandle, artifacts_root: &str) -> anyhow::Resul
             CommandEvent::Stdout(line) => {
                 let s = String::from_utf8_lossy(&line);
                 if let Some(port_str) = s.trim().strip_prefix("READY port=") {
-                    return Ok(port_str.parse()?);
+                    return Ok((port_str.parse()?, child));
                 }
             }
             CommandEvent::Terminated(status) => {

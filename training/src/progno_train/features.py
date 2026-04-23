@@ -234,19 +234,22 @@ def build_all_features(
     history: pd.DataFrame,
     elo_state: dict,
 ) -> pd.DataFrame:
-    """Compute features for every complete match in history."""
+    """Compute features for every complete match in history — both orientations per match."""
     rows = []
     for _, row in history[history["is_complete"]].iterrows():
-        feats = compute_match_features(
+        common = dict(
             history=history,
             elo_state=elo_state,
-            player_a_id=int(row["winner_id"]),
-            player_b_id=int(row["loser_id"]),
             surface=row.get("surface", "Hard"),
             tourney_level=row.get("tourney_level", "A"),
             round_=row.get("round", "R32"),
             best_of=int(row.get("best_of", 3)),
             tourney_date=row["tourney_date"],
+        )
+        # winner as player A → label 1
+        feats_pos = compute_match_features(
+            player_a_id=int(row["winner_id"]),
+            player_b_id=int(row["loser_id"]),
             player_a_rank=row.get("winner_rank"),
             player_b_rank=row.get("loser_rank"),
             player_a_age=row.get("winner_age"),
@@ -255,9 +258,28 @@ def build_all_features(
             player_b_height=row.get("loser_ht"),
             player_a_hand=row.get("winner_hand"),
             player_b_hand=row.get("loser_hand"),
+            **common,
         )
-        feats["label"] = 1
-        feats["tourney_date"] = row["tourney_date"]
-        feats["year"] = row["tourney_date"].year
-        rows.append(feats)
+        feats_pos["label"] = 1
+        feats_pos["tourney_date"] = row["tourney_date"]
+        feats_pos["year"] = row["tourney_date"].year
+        rows.append(feats_pos)
+        # loser as player A → label 0
+        feats_neg = compute_match_features(
+            player_a_id=int(row["loser_id"]),
+            player_b_id=int(row["winner_id"]),
+            player_a_rank=row.get("loser_rank"),
+            player_b_rank=row.get("winner_rank"),
+            player_a_age=row.get("loser_age"),
+            player_b_age=row.get("winner_age"),
+            player_a_height=row.get("loser_ht"),
+            player_b_height=row.get("winner_ht"),
+            player_a_hand=row.get("loser_hand"),
+            player_b_hand=row.get("winner_hand"),
+            **common,
+        )
+        feats_neg["label"] = 0
+        feats_neg["tourney_date"] = row["tourney_date"]
+        feats_neg["year"] = row["tourney_date"].year
+        rows.append(feats_neg)
     return pd.DataFrame(rows)

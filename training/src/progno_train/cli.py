@@ -108,8 +108,9 @@ def run_train(paths: Paths, tour: str) -> int:
         return 2
 
     burn_in = BURN_IN_YEAR_WTA if tour == "wta" else BURN_IN_YEAR_ATP
-    log.info("running walk-forward training (tour=%s, burn_in=%d)...", tour, burn_in)
-    model, a, b, metrics, feature_cols = run_walk_forward(paths.featurized, burn_in_year=burn_in)
+    val_start = 2019 if tour == "wta" else 2016
+    log.info("running walk-forward training (tour=%s, burn_in=%d, val_start=%d)...", tour, burn_in, val_start)
+    model, a, b, metrics, feature_cols = run_walk_forward(paths.featurized, burn_in_year=burn_in, val_start=val_start)
 
     log.info("saving model artifacts...")
     model.save_model(str(paths.model_cbm))
@@ -128,7 +129,7 @@ def run_train(paths: Paths, tour: str) -> int:
 
 def run_validate(paths: Paths) -> int:
     from catboost import CatBoostClassifier, Pool
-    from progno_train.train import apply_platt, get_feature_cols
+    from progno_train.train import apply_platt, get_feature_cols, TEST_START_YEAR
     from progno_train.validate import compute_log_loss, compute_ece, acceptance_gate
 
     log.info("running validation and acceptance gate...")
@@ -139,7 +140,7 @@ def run_validate(paths: Paths) -> int:
     a, b = cal["a"], cal["b"]
 
     df = pd.read_parquet(paths.featurized)
-    test_df = df[df["year"] >= 2023]
+    test_df = df[df["year"] >= TEST_START_YEAR]
     feature_cols = get_feature_cols(df)
 
     pool = Pool(test_df[feature_cols].fillna(0), feature_names=feature_cols)

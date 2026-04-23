@@ -90,13 +90,14 @@ def apply_platt(raw_probs: np.ndarray, a: float, b: float) -> np.ndarray:
 def run_walk_forward(
     featurized_path: Path,
     burn_in_year: int = BURN_IN_YEAR_ATP,
+    val_start: int = 2016,
 ) -> tuple[CatBoostClassifier, float, float, dict, list[str]]:
     """Run full walk-forward pipeline. Returns (model, platt_a, platt_b, metrics, feature_cols)."""
     df = pd.read_parquet(featurized_path)
     feature_cols = get_feature_cols(df)
 
     cal_df = df[df["year"] == CAL_YEAR]
-    final_train = df[(df["year"] > burn_in_year) & (df["year"] < TEST_START_YEAR)]
+    final_train = df[(df["year"] > burn_in_year) & (df["year"] < CAL_YEAR)]
 
     model = _train_catboost(final_train, cal_df, feature_cols)
 
