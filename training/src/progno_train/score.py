@@ -5,9 +5,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-RETIREMENT_MARKERS = ("RET", "W/O", "DEF", "Def.", "ABN")
-_RETIREMENT_MARKERS_UPPER = frozenset(m.upper() for m in RETIREMENT_MARKERS)
-SET_PATTERN = re.compile(r"^(\d+)-(\d+)(?:\([^)]*\))?$")
+_RETIREMENT_MARKERS = frozenset({"RET", "W/O", "DEF", "DEF.", "ABN"})
+SET_PATTERN = re.compile(r"^\[?(\d+)-(\d+)(?:\([^)]*\))?\]?$")
 
 
 @dataclass(frozen=True)
@@ -25,7 +24,7 @@ def parse_score(raw: str) -> ParsedScore:
     tokens = raw.strip().split()
     tokens_upper = [t.upper() for t in tokens]
 
-    is_retirement = any(t in _RETIREMENT_MARKERS_UPPER for t in tokens_upper)
+    is_retirement = any(t in _RETIREMENT_MARKERS for t in tokens_upper)
     set_matches = [m for tok in tokens if (m := SET_PATTERN.match(tok))]
 
     winner_sets = 0
@@ -33,8 +32,8 @@ def parse_score(raw: str) -> ParsedScore:
     completed = 0
     for m in set_matches:
         winner_games, loser_games = int(m.group(1)), int(m.group(2))
-        # Set is complete if one player has 6+ games (covers 6+ with 2-game lead or 7+ tiebreak).
-        if winner_games >= 6 or loser_games >= 6:
+        # Tied score (e.g. 6-6) means tiebreak in progress — not a completed set.
+        if (winner_games >= 6 or loser_games >= 6) and winner_games != loser_games:
             completed += 1
             if winner_games > loser_games:
                 winner_sets += 1
