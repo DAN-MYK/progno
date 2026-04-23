@@ -56,11 +56,16 @@ def test_e2e_pipeline_on_real_data(tmp_path: Path) -> None:
     players = state["players"]
     assert len(players) > 1000
 
-    # Load names via players.parquet for top-20 overall
+    # elo_state.json keys are last-name strings (e.g. "djokovic"); extract top-20 by elo_overall
+    elo_by_key = {key: p["elo_overall"] for key, p in players.items()}
+    top20_keys = pd.Series(elo_by_key).sort_values(ascending=False).head(20).index.tolist()
+
+    # Load players.parquet to map last-name keys back to full names
     players_df = pd.read_parquet(paths.artifacts / "players.parquet")
-    elo_by_id = {int(pid): p["elo_overall"] for pid, p in players.items()}
-    top20 = pd.Series(elo_by_id).sort_values(ascending=False).head(20).index.tolist()
-    top20_names = set(players_df.set_index("player_id").loc[top20]["name"].tolist())
+    # Build a lowercase last-name → full name lookup
+    players_df["last_name_key"] = players_df["name"].str.split().str[-1].str.lower()
+    last_name_to_full = players_df.set_index("last_name_key")["name"].to_dict()
+    top20_names = {last_name_to_full[k] for k in top20_keys if k in last_name_to_full}
 
     overlap = top20_names & KNOWN_TOP_PLAYERS_SINCE_2020
     assert len(overlap) >= 2, (

@@ -11,19 +11,17 @@ import pandas as pd
 from progno_train.rollup import PlayerElo
 
 MATCH_HISTORY_COLUMNS = [
-    "tourney_id",
-    "tourney_date",
-    "match_num",
-    "surface",
-    "tourney_level",
-    "round",
-    "best_of",
-    "winner_id",
-    "loser_id",
-    "is_complete",
-    "completed_sets",
-    "score",
-    "minutes",
+    # identifiers and context
+    "tourney_id", "tourney_date", "match_num",
+    "surface", "tourney_level", "round", "best_of",
+    # players
+    "winner_id", "winner_name", "winner_hand", "winner_ht", "winner_age", "winner_rank",
+    "loser_id", "loser_name", "loser_hand", "loser_ht", "loser_age", "loser_rank",
+    # outcome
+    "is_complete", "completed_sets", "score", "minutes",
+    # serve stats (available 1991+, null before)
+    "w_ace", "w_df", "w_svpt", "w_1stIn", "w_1stWon", "w_2ndWon", "w_bpSaved", "w_bpFaced",
+    "l_ace", "l_df", "l_svpt", "l_1stIn", "l_1stWon", "l_2ndWon", "l_bpSaved", "l_bpFaced",
 ]
 
 
@@ -83,3 +81,28 @@ def write_match_history(matches: pd.DataFrame, out_path: Path) -> None:
     projected = matches[MATCH_HISTORY_COLUMNS].copy()
     out_path.parent.mkdir(parents=True, exist_ok=True)
     projected.to_parquet(out_path, index=False)
+
+
+def write_calibration(a: float, b: float, out_path: Path) -> None:
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(json.dumps({"a": a, "b": b}) + "\n")
+
+
+def write_model_card(
+    train_years: tuple[int, int],
+    test_year: int,
+    metrics: dict,
+    feature_names: list[str],
+    git_sha: str,
+    out_path: Path,
+) -> None:
+    card = {
+        "train_years": list(train_years),
+        "test_year": test_year,
+        "metrics": metrics,
+        "feature_names": feature_names,
+        "git_sha": git_sha,
+        "generated_at": pd.Timestamp.now().isoformat(),
+    }
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(json.dumps(card, indent=2) + "\n")
