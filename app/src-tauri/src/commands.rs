@@ -53,8 +53,8 @@ pub fn parse_and_predict(text: String, elo_json: String) -> PredictResponse {
     for m in matches {
         match predict_match(&m, &state) {
             Ok(pred) => predictions.push(pred),
-            Err(_e) => {
-                // Skip unparseable matches silently, allow partial results
+            Err(e) => {
+                eprintln!("Failed to predict match {} vs {}: {}", m.player_a, m.player_b, e);
             }
         }
     }
