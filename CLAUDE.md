@@ -20,26 +20,25 @@ Claude Code writes all code. Before touching any file:
 
 ## Current status
 
-- **Active phase**: Phase 1a — Python ETL pipeline (`training/`)
-- **Implementation plan**: `docs/superpowers/plans/2026-04-22-phase-1a-training-pipeline.md`
-- `training/` and `app/` are populated as phases are implemented; neither exists yet at project start
+- **Completed**: Phase 1a (Python ETL pipeline) and Phase 1b (Tauri app with Elo, parser, UI)
+- **Active phase**: Phase 2 — EV / fractional Kelly (Rust)
+- **Implementation plans**: `docs/superpowers/plans/` (check for the latest phase plan)
 
 ## Commands
 
-All commands assume `just` is available. The `training/` workspace uses `uv` for dependency management.
+All commands use `just` from the repo root. The `training/` workspace uses `uv`.
 
 ```sh
-# From training/
-uv run pytest                  # run all tests
-uv run pytest tests/test_elo.py  # run a single test file
-uv run ruff format .           # format code
-uv run ruff check .            # lint
-
-# Via justfile (once created):
-just check                     # ruff + pytest
+# Top-level (from repo root)
+just test                      # pytest -v
+just check                     # ruff check + pytest
+just fmt                       # ruff format + ruff check --fix
 just ingest                    # ingest Sackmann CSVs → parquet
 just elo                       # compute Elo → artifacts
-just retrain                   # full pipeline (ingest → features → train → validate → publish)
+just publish <version>         # publish artifacts with a version tag
+
+# Direct uv (from training/)
+uv run pytest tests/test_elo.py  # run a single test file
 ```
 
 ## Tech stack & conventions
@@ -72,6 +71,7 @@ These come from the spec and must be preserved in all code:
 - **Kelly stake** is `max(0, 0.25 × full_kelly × bankroll)`. No full Kelly, no negative stakes.
 - **Calibration gate** (spec §6.4): model does not get published if it fails log-loss, ECE, or ROI thresholds.
 - **Acceptance gate is a hard gate** — the orchestrator never routes around it.
+- **Surface tracking**: Hard, Clay, Grass only. Carpet matches update `elo_overall` but not a surface-specific rating (`TRACKED_SURFACES` in `rollup.py`).
 
 ## Repo layout
 

@@ -9,10 +9,8 @@
     error.set(null)
 
     try {
-      const eloJson = localStorage.getItem('elo_state') || '{}'
       const result = await invoke('parse_and_predict', {
         text: textInput,
-        eloJson: eloJson,
       })
 
       if (result.error) {

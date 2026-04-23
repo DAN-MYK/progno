@@ -1,19 +1,8 @@
 <script lang="ts">
-  import { onMount } from 'svelte'
   import MatchInput from './lib/components/MatchInput.svelte'
   import MatchCard from './lib/components/MatchCard.svelte'
   import Footer from './lib/components/Footer.svelte'
-  import { predictions, error, loading } from './lib/stores'
-
-  onMount(() => {
-    // Load Elo state from Phase 1a artifacts
-    // For now, placeholder; Phase 1b extends to load from app-data
-    const placeholder = {
-      data_as_of: '2026-04-20',
-      players: {},
-    }
-    localStorage.setItem('elo_state', JSON.stringify(placeholder))
-  })
+  import { predictions, error } from './lib/stores'
 </script>
 
 <div class="min-h-screen flex flex-col bg-white">

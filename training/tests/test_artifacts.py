@@ -19,13 +19,13 @@ def test_write_elo_state_produces_expected_json(tmp_path: Path) -> None:
         2: PlayerElo(player_id=2, elo_overall=1400.0, elo_clay=1450.0, matches_played=8),
     }
     out = tmp_path / "elo_state.json"
-    write_elo_state(state, out, data_as_of=pd.Timestamp("2026-04-22"))
+    write_elo_state(state, out, data_as_of=pd.Timestamp("2026-04-22"), player_names={1: "alpha", 2: "beta"})
 
     content = json.loads(out.read_text())
     assert content["data_as_of"] == "2026-04-22"
     assert "players" in content
-    assert str(1) in content["players"]
-    p1 = content["players"]["1"]
+    assert "alpha" in content["players"]
+    p1 = content["players"]["alpha"]
     assert p1["elo_overall"] == 1600.0
     assert p1["elo_hard"] == 1650.0
     assert p1["matches_played"] == 10
@@ -36,10 +36,11 @@ def test_write_elo_state_is_deterministic(tmp_path: Path) -> None:
         2: PlayerElo(player_id=2, elo_overall=1400.0),
         1: PlayerElo(player_id=1, elo_overall=1600.0),
     }
+    names = {1: "one", 2: "two"}
     out1 = tmp_path / "a.json"
     out2 = tmp_path / "b.json"
-    write_elo_state(state, out1, data_as_of=pd.Timestamp("2026-04-22"))
-    write_elo_state(state, out2, data_as_of=pd.Timestamp("2026-04-22"))
+    write_elo_state(state, out1, data_as_of=pd.Timestamp("2026-04-22"), player_names=names)
+    write_elo_state(state, out2, data_as_of=pd.Timestamp("2026-04-22"), player_names=names)
     assert out1.read_text() == out2.read_text()
 
 

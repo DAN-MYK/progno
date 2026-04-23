@@ -54,8 +54,13 @@ def run_elo(paths: Paths) -> int:
     log.info("produced Elo state for %d players", len(state))
 
     data_as_of = matches["tourney_date"].max()
+    all_names = pd.concat([
+        matches[["winner_id", "winner_name"]].rename(columns={"winner_id": "id", "winner_name": "name"}),
+        matches[["loser_id", "loser_name"]].rename(columns={"loser_id": "id", "loser_name": "name"}),
+    ]).drop_duplicates("id")
+    player_names = {int(row.id): row.name.split()[-1].lower() for row in all_names.itertuples()}
     paths.artifacts.mkdir(parents=True, exist_ok=True)
-    write_elo_state(state, paths.artifacts / "elo_state.json", data_as_of=data_as_of)
+    write_elo_state(state, paths.artifacts / "elo_state.json", data_as_of=data_as_of, player_names=player_names)
     write_players(matches, paths.artifacts / "players.parquet")
     write_match_history(matches, paths.artifacts / "match_history.parquet")
     log.info("artifacts written to %s", paths.artifacts)

@@ -2,6 +2,8 @@ use serde::{Deserialize, Serialize};
 use crate::artifacts::{get_data_as_of, get_player_elo, get_player_surface_matches};
 use crate::elo::{expected_probability, surface_elo};
 use crate::parser::{parse_match_text, ParsedMatch};
+#[cfg(not(test))]
+use crate::state::AppState;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct PredictionResult {
@@ -21,11 +23,9 @@ pub struct PredictResponse {
     pub error: Option<String>,
 }
 
-/// Parse match text and compute Elo predictions.
-/// Accepts elo_json as JSON string from the UI.
-#[tauri::command]
-pub fn parse_and_predict(text: String, elo_json: String) -> PredictResponse {
-    let matches = match parse_match_text(&text) {
+/// Core prediction logic — separated for testability.
+pub fn predict_text(text: &str, elo_state: &serde_json::Value) -> PredictResponse {
+    let matches = match parse_match_text(text) {
         Ok(m) => m,
         Err(e) => {
             return PredictResponse {
@@ -36,22 +36,11 @@ pub fn parse_and_predict(text: String, elo_json: String) -> PredictResponse {
         }
     };
 
-    let state = match serde_json::from_str(&elo_json) {
-        Ok(s) => s,
-        Err(e) => {
-            return PredictResponse {
-                predictions: vec![],
-                data_as_of: "unknown".to_string(),
-                error: Some(format!("Invalid Elo JSON: {}", e)),
-            }
-        }
-    };
-
-    let data_as_of = get_data_as_of(&state);
+    let data_as_of = get_data_as_of(elo_state);
     let mut predictions = Vec::new();
 
     for m in matches {
-        match predict_match(&m, &state) {
+        match predict_match(&m, elo_state) {
             Ok(pred) => predictions.push(pred),
             Err(e) => {
                 eprintln!("Failed to predict match {} vs {}: {}", m.player_a, m.player_b, e);
@@ -59,59 +48,167 @@ pub fn parse_and_predict(text: String, elo_json: String) -> PredictResponse {
         }
     }
 
-    PredictResponse {
-        predictions,
-        data_as_of,
-        error: if predictions.is_empty() {
-            Some("No matches could be predicted".to_string())
-        } else {
-            None
+    let error = if predictions.is_empty() {
+        Some("No matches could be predicted".to_string())
+    } else {
+        None
+    };
+    PredictResponse { predictions, data_as_of, error }
+}
+
+/// Parse match text and compute Elo predictions using loaded AppState.
+#[cfg(not(test))]
+#[tauri::command]
+pub fn parse_and_predict(text: String, app_state: tauri::State<AppState>) -> PredictResponse {
+    let guard = app_state.elo_state.lock().unwrap();
+    match &*guard {
+        None => PredictResponse {
+            predictions: vec![],
+            data_as_of: "unknown".to_string(),
+            error: Some("Elo data not loaded. Run 'just elo' first.".to_string()),
         },
+        Some(elo) => predict_text(&text, elo),
     }
 }
 
+/// Get the data-as-of date for the loaded Elo model.
+#[cfg(not(test))]
+#[tauri::command]
+pub fn get_data_as_of_cmd(app_state: tauri::State<AppState>) -> String {
+    let guard = app_state.elo_state.lock().unwrap();
+    match &*guard {
+        None => "unknown".to_string(),
+        Some(elo) => get_data_as_of(elo),
+    }
+}
+
+fn normalize_player_id(name: &str) -> String {
+    name.replace(' ', "_").to_lowercase()
+}
+
+fn resolve_player(
+    state: &serde_json::Value,
+    player_id: &str,
+    surface: &str,
+) -> Result<(f64, f64), String> {
+    let elo_overall = get_player_elo(state, player_id, "overall")
+        .or_else(|_| get_player_elo(state, player_id, ""))?;
+    let matches_on_surface = get_player_surface_matches(state, player_id, surface).unwrap_or(0);
+    let elo_surface = get_player_elo(state, player_id, surface).unwrap_or(elo_overall);
+    Ok((elo_overall, surface_elo(elo_surface, elo_overall, matches_on_surface)))
+}
+
 fn predict_match(m: &ParsedMatch, state: &serde_json::Value) -> Result<PredictionResult, String> {
-    let player_id_a = m.player_a.replace(" ", "_").to_lowercase();
-    let player_id_b = m.player_b.replace(" ", "_").to_lowercase();
+    let id_a = normalize_player_id(&m.player_a);
+    let id_b = normalize_player_id(&m.player_b);
 
-    let elo_a_overall = get_player_elo(state, &player_id_a, "overall")
-        .or_else(|_| get_player_elo(state, &player_id_a, ""))?;
-    let elo_b_overall = get_player_elo(state, &player_id_b, "overall")
-        .or_else(|_| get_player_elo(state, &player_id_b, ""))?;
-
-    let matches_a = get_player_surface_matches(state, &player_id_a, &m.surface).unwrap_or(0);
-    let matches_b = get_player_surface_matches(state, &player_id_b, &m.surface).unwrap_or(0);
-
-    let elo_a_surface = get_player_elo(state, &player_id_a, &m.surface).unwrap_or(elo_a_overall);
-    let elo_b_surface = get_player_elo(state, &player_id_b, &m.surface).unwrap_or(elo_b_overall);
-
-    let elo_a_composite = surface_elo(elo_a_surface, elo_a_overall, matches_a);
-    let elo_b_composite = surface_elo(elo_b_surface, elo_b_overall, matches_b);
+    let (elo_a_overall, elo_a_composite) = resolve_player(state, &id_a, &m.surface)?;
+    let (elo_b_overall, elo_b_composite) = resolve_player(state, &id_b, &m.surface)?;
 
     let prob_a = expected_probability(elo_a_composite, elo_b_composite);
-    let prob_b = 1.0 - prob_a;
 
     Ok(PredictionResult {
         player_a: m.player_a.clone(),
         player_b: m.player_b.clone(),
         surface: m.surface.clone(),
         prob_a_wins: prob_a,
-        prob_b_wins: prob_b,
+        prob_b_wins: 1.0 - prob_a,
         elo_a_overall,
         elo_b_overall,
     })
 }
 
-/// Get the data-as-of date for the Elo model.
-#[tauri::command]
-pub fn get_data_as_of_cmd(elo_json: String) -> String {
-    serde_json::from_str::<serde_json::Value>(&elo_json)
-        .ok()
-        .and_then(|state| {
-            state
-                .get("data_as_of")
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string())
+#[cfg(test)]
+mod tests {
+    use super::predict_text;
+    use serde_json::json;
+
+    fn elo_state_two_players() -> serde_json::Value {
+        json!({
+            "data_as_of": "2026-04-20",
+            "players": {
+                "alcaraz": {
+                    "elo_overall": 1600,
+                    "elo_hard": 1650,
+                    "elo_clay": 1550,
+                    "elo_grass": 1500,
+                    "matches_played": 10,
+                    "matches_played_hard": 5,
+                    "matches_played_clay": 3,
+                    "matches_played_grass": 2
+                },
+                "sinner": {
+                    "elo_overall": 1500,
+                    "elo_hard": 1500,
+                    "elo_clay": 1450,
+                    "elo_grass": 1500,
+                    "matches_played": 8,
+                    "matches_played_hard": 4,
+                    "matches_played_clay": 2,
+                    "matches_played_grass": 2
+                }
+            }
         })
-        .unwrap_or_else(|| "unknown".to_string())
+    }
+
+    #[test]
+    fn test_predict_returns_result() {
+        let state = elo_state_two_players();
+        let response = predict_text("Alcaraz vs Sinner - Clay", &state);
+        assert_eq!(response.predictions.len(), 1);
+        assert_eq!(response.data_as_of, "2026-04-20");
+        assert!(response.error.is_none());
+        assert!(response.predictions[0].prob_a_wins > 0.5);
+    }
+
+    #[test]
+    fn test_predict_missing_player() {
+        let state = json!({"data_as_of": "2026-04-20", "players": {}});
+        let response = predict_text("Unknown vs Sinner", &state);
+        assert_eq!(response.predictions.len(), 0);
+        assert!(response.error.is_some());
+    }
+
+    #[test]
+    fn test_predict_multiple() {
+        let state = json!({
+            "data_as_of": "2026-04-20",
+            "players": {
+                "alcaraz": { "elo_overall": 1600, "elo_hard": 1600, "elo_clay": 1600, "elo_grass": 1600, "matches_played": 10, "matches_played_hard": 5, "matches_played_clay": 5, "matches_played_grass": 0 },
+                "sinner": { "elo_overall": 1500, "elo_hard": 1500, "elo_clay": 1500, "elo_grass": 1500, "matches_played": 8, "matches_played_hard": 4, "matches_played_clay": 4, "matches_played_grass": 0 },
+                "djokovic": { "elo_overall": 1700, "elo_hard": 1700, "elo_clay": 1700, "elo_grass": 1700, "matches_played": 20, "matches_played_hard": 10, "matches_played_clay": 5, "matches_played_grass": 5 },
+                "medvedev": { "elo_overall": 1400, "elo_hard": 1400, "elo_clay": 1400, "elo_grass": 1400, "matches_played": 8, "matches_played_hard": 4, "matches_played_clay": 2, "matches_played_grass": 2 }
+            }
+        });
+        let response = predict_text("Alcaraz vs Sinner\nDjokovic vs Medvedev", &state);
+        assert_eq!(response.predictions.len(), 2);
+        assert_eq!(response.predictions[0].player_a, "Alcaraz");
+        assert_eq!(response.predictions[1].player_a, "Djokovic");
+    }
+
+    #[test]
+    fn test_predict_empty_input() {
+        let state = json!({"data_as_of": "2026-04-20", "players": {}});
+        let response = predict_text("", &state);
+        assert_eq!(response.predictions.len(), 0);
+        assert!(response.error.is_some());
+    }
+
+    #[test]
+    fn test_predict_probability_bounds() {
+        let state = elo_state_two_players();
+        let response = predict_text("Alcaraz vs Sinner", &state);
+        assert_eq!(response.predictions.len(), 1);
+        let pred = &response.predictions[0];
+        assert!(pred.prob_a_wins >= 0.0 && pred.prob_a_wins <= 1.0);
+        assert!(pred.prob_b_wins >= 0.0 && pred.prob_b_wins <= 1.0);
+        assert!((pred.prob_a_wins + pred.prob_b_wins - 1.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_data_as_of_returned_in_response() {
+        let state = elo_state_two_players();
+        let response = predict_text("Alcaraz vs Sinner", &state);
+        assert_eq!(response.data_as_of, "2026-04-20");
+    }
 }

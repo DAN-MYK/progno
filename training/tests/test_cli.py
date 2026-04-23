@@ -47,4 +47,4 @@ def test_run_elo_writes_artifacts(paths: Paths) -> None:
     assert "players" in state
     assert "data_as_of" in state
     # Alpha Alpha (id 100001) won two matches in the fixture, should be > 1500
-    assert state["players"]["100001"]["elo_overall"] > 1500.0
+    assert state["players"]["alpha"]["elo_overall"] > 1500.0

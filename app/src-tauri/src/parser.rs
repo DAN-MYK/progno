@@ -50,3 +50,54 @@ pub fn parse_match_text(text: &str) -> Result<Vec<ParsedMatch>, String> {
 
     Ok(matches)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_simple_vs_format() {
+        let matches = parse_match_text("Alcaraz vs Sinner").expect("should parse");
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].player_a, "Alcaraz");
+        assert_eq!(matches[0].player_b, "Sinner");
+        assert_eq!(matches[0].surface, "Hard");
+    }
+
+    #[test]
+    fn test_parse_with_surface() {
+        let matches = parse_match_text("Alcaraz vs Sinner - Clay").expect("should parse");
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].surface.to_lowercase(), "clay");
+    }
+
+    #[test]
+    fn test_parse_multiple_matches() {
+        let matches = parse_match_text("Alcaraz vs Sinner\nDjokovic vs Medvedev").expect("should parse");
+        assert_eq!(matches.len(), 2);
+        assert_eq!(matches[0].player_a, "Alcaraz");
+        assert_eq!(matches[1].player_a, "Djokovic");
+    }
+
+    #[test]
+    fn test_parse_hyphen_separator() {
+        let matches = parse_match_text("Alcaraz - Sinner").expect("should parse");
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].player_a, "Alcaraz");
+    }
+
+    #[test]
+    fn test_parse_empty_returns_empty() {
+        let matches = parse_match_text("").expect("should parse");
+        assert_eq!(matches.len(), 0);
+    }
+
+    #[test]
+    fn test_parse_v_abbreviation() {
+        let matches = parse_match_text("Federer v. Nadal - Grass").expect("should parse");
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].player_a, "Federer");
+        assert_eq!(matches[0].player_b, "Nadal");
+        assert_eq!(matches[0].surface, "Grass");
+    }
+}

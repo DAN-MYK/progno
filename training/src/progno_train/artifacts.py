@@ -31,12 +31,14 @@ def write_elo_state(
     state: dict[int, PlayerElo],
     out_path: Path,
     data_as_of: pd.Timestamp,
+    player_names: dict[int, str] | None = None,
 ) -> None:
     players_out: dict[str, dict] = {}
     for pid in sorted(state.keys()):
+        key = player_names[pid] if player_names and pid in player_names else str(pid)
         d = asdict(state[pid])
         d.pop("player_id")
-        players_out[str(pid)] = d
+        players_out[key] = d
 
     payload = {
         "data_as_of": data_as_of.strftime("%Y-%m-%d"),
