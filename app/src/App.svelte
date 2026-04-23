@@ -2,7 +2,7 @@
   import MatchInput from './lib/components/MatchInput.svelte'
   import MatchCard from './lib/components/MatchCard.svelte'
   import Footer from './lib/components/Footer.svelte'
-  import { predictions, error, bankroll, kelly_fraction } from './lib/stores'
+  import { predictions, error, bankroll, kelly_fraction, selectedTour } from './lib/stores'
 </script>
 
 <div class="min-h-screen flex flex-col bg-white">
@@ -10,6 +10,17 @@
     <div class="max-w-6xl mx-auto flex justify-between items-center">
       <h1 class="text-2xl font-bold">Progno</h1>
       <div class="flex gap-6 items-center text-sm">
+        <label class="flex items-center gap-2">
+          <span class="text-gray-700">Tour:</span>
+          <select
+            bind:value={$selectedTour}
+            class="px-2 py-1 border border-gray-300 rounded"
+            onchange={() => predictions.set([])}
+          >
+            <option value="atp">ATP</option>
+            <option value="wta">WTA</option>
+          </select>
+        </label>
         <label class="flex items-center gap-2">
           <span class="text-gray-700">Bankroll ($):</span>
           <input

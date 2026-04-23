@@ -1,6 +1,6 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core'
-  import { predictions, loading, error, dataAsOf } from '../stores'
+  import { predictions, loading, error, dataAsOf, selectedTour } from '../stores'
 
   let textInput = $state('')
 
@@ -11,6 +11,7 @@
     try {
       const result = await invoke('parse_and_predict', {
         text: textInput,
+        tour: $selectedTour,
       })
 
       if (result.error) {
@@ -28,12 +29,16 @@
 </script>
 
 <div class="p-6 border-b border-gray-200 bg-white">
-  <h2 class="text-lg font-semibold mb-4">Paste today's matches</h2>
+  <h2 class="text-lg font-semibold mb-4">
+    Paste today's {$selectedTour.toUpperCase()} matches
+  </h2>
   <textarea
     bind:value={textInput}
     class="w-full p-3 border border-gray-300 rounded-md font-mono text-sm"
     rows="6"
-    placeholder="Alcaraz vs Sinner - Clay&#10;Djokovic vs Zverev - Hard"
+    placeholder={$selectedTour === 'wta'
+      ? 'Swiatek vs Sabalenka - Clay\nGauff vs Rybakina - Hard'
+      : 'Alcaraz vs Sinner - Clay\nDjokovic vs Zverev - Hard'}
   />
   <button
     onclick={handleParse}

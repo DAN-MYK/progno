@@ -8,6 +8,8 @@ export interface Prediction {
   prob_b_wins: number
   elo_a_overall: number
   elo_b_overall: number
+  ml_prob_a_wins?: number
+  confidence_flag?: string
 }
 
 export interface KellyResult {
@@ -24,5 +26,8 @@ export const error = writable<string | null>(null)
 export const dataAsOf = writable('unknown')
 
 // Phase 2: Kelly settings
-export const bankroll = writable(1000) // USD, default $1000
-export const kelly_fraction = writable(0.25) // default 0.25×
+export const bankroll = writable(1000)
+export const kelly_fraction = writable(0.25)
+
+// Phase 4: Tour selector
+export const selectedTour = writable<'atp' | 'wta'>('atp')
