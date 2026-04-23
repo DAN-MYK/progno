@@ -1,6 +1,7 @@
 use std::sync::Mutex;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
+use tauri::Manager;
 use tauri_plugin_shell::ShellExt;
 use tauri_plugin_shell::process::{CommandChild, CommandEvent};
 use reqwest::Client;

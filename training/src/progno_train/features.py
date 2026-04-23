@@ -231,8 +231,9 @@ def compute_match_features(
 
     elo_a = _elo(player_a_id, "elo_overall")
     elo_b = _elo(player_b_id, "elo_overall")
-    elo_a_surf = _elo(player_a_id, f"elo_{surface.lower()}")
-    elo_b_surf = _elo(player_b_id, f"elo_{surface.lower()}")
+    surf_key = surface.lower() if isinstance(surface, str) else "hard"
+    elo_a_surf = _elo(player_a_id, f"elo_{surf_key}")
+    elo_b_surf = _elo(player_b_id, f"elo_{surf_key}")
     feats["elo_overall_diff"] = elo_a - elo_b
     feats["elo_surface_diff"] = elo_a_surf - elo_b_surf
 
