@@ -6,8 +6,10 @@ import pytest
 from progno_train.features import (
     rolling_win_rate,
     fatigue_features,
+    serve_efficiency,
     h2h_score,
     compute_match_features,
+    build_all_features,
     POPULATION_WIN_RATE,
     LOW_HISTORY_THRESHOLD,
 )
@@ -145,3 +147,25 @@ def test_elo_monotonicity():
     feats_strong = compute_match_features(hist, elo_state_strong, 1, 2, "Hard", "A", "R32", 3, pd.Timestamp("2021-01-01"))
     feats_weak = compute_match_features(hist, elo_state_weak, 1, 2, "Hard", "A", "R32", 3, pd.Timestamp("2021-01-01"))
     assert feats_strong["elo_overall_diff"] > feats_weak["elo_overall_diff"]
+
+
+def test_build_all_features_balanced_labels():
+    hist = make_history(10)
+    elo_state = {"players": {}}
+    df = build_all_features(hist, elo_state)
+    # Should have 20 rows (10 matches × 2 orientations) with balanced labels
+    assert len(df) == 20
+    assert set(df["label"].unique()) == {0, 1}
+    assert (df["label"] == 1).sum() == 10
+    assert (df["label"] == 0).sum() == 10
+
+
+def test_serve_efficiency_separates_own_stats():
+    """Player's own serve stats should not include opponent stats."""
+    # Player 1 wins all 10 matches — all rows have won=True for player 1
+    # so we only use w_* columns (w_svpt=60, w_1stIn=40) for player 1's stats
+    hist = make_history(10)
+    se = serve_efficiency(hist, 1, pd.Timestamp("2021-01-01"))
+    assert se["first_serve_in_pct"] is not None
+    # 40/60 = 0.667 for first_serve_in_pct (not diluted by opponent stats)
+    assert abs(se["first_serve_in_pct"] - 40.0 / 60.0) < 0.01

@@ -22,12 +22,10 @@ def _player_matches_before(
     won_mask = (
         (history["winner_id"] == player_id)
         & (history["tourney_date"] < as_of_date)
-        & history["is_complete"]
     )
     lost_mask = (
         (history["loser_id"] == player_id)
         & (history["tourney_date"] < as_of_date)
-        & history["is_complete"]
     )
     w = history[won_mask].assign(won=True, opponent_rank=history.loc[won_mask, "loser_rank"])
     l = history[lost_mask].assign(won=False, opponent_rank=history.loc[lost_mask, "winner_rank"])
@@ -52,9 +50,12 @@ def rolling_win_rate(
     n: int,
     surface: str | None = None,
     max_opponent_rank: int | None = None,
+    since_date: pd.Timestamp | None = None,
 ) -> tuple[float, bool]:
     """Win rate over last n completed matches. Returns (win_rate, low_history_flag)."""
     df = _player_matches_before(history, player_id, as_of_date)
+    if since_date is not None:
+        df = df[df["tourney_date"] >= since_date]
     if surface:
         df = df[df["surface"] == surface]
     if max_opponent_rank is not None:
@@ -114,19 +115,22 @@ def serve_efficiency(
     def _safe_div(a: float, b: float) -> float | None:
         return float(a / b) if b > eps else None
 
-    if all(c in df.columns for c in ["w_svpt", "w_1stIn"]):
-        svpt = df["w_svpt"].fillna(0).sum() + df.get("l_svpt", pd.Series(0, index=df.index)).fillna(0).sum()
-        first_in = df["w_1stIn"].fillna(0).sum() + df.get("l_1stIn", pd.Series(0, index=df.index)).fillna(0).sum()
-        first_won = df["w_1stWon"].fillna(0).sum() + df.get("l_1stWon", pd.Series(0, index=df.index)).fillna(0).sum()
-        ace = df["w_ace"].fillna(0).sum() + df.get("l_ace", pd.Series(0, index=df.index)).fillna(0).sum()
-        df_ = df["w_df"].fillna(0).sum() + df.get("l_df", pd.Series(0, index=df.index)).fillna(0).sum()
+    if all(c in df.columns for c in ["w_svpt", "w_1stIn", "l_svpt", "l_1stIn"]):
+        won_df = df[df["won"]]
+        lost_df = df[~df["won"]]
+        svpt      = won_df["w_svpt"].fillna(0).sum()  + lost_df["l_svpt"].fillna(0).sum()
+        first_in  = won_df["w_1stIn"].fillna(0).sum() + lost_df["l_1stIn"].fillna(0).sum()
+        first_won = won_df["w_1stWon"].fillna(0).sum()+ lost_df["l_1stWon"].fillna(0).sum()
+        ace       = won_df["w_ace"].fillna(0).sum()   + lost_df["l_ace"].fillna(0).sum()
+        df_count  = won_df["w_df"].fillna(0).sum()    + lost_df["l_df"].fillna(0).sum()
 
-        result["first_serve_in_pct"] = _safe_div(first_in, svpt)
+        result["first_serve_in_pct"]  = _safe_div(first_in, svpt)
         result["first_serve_won_pct"] = _safe_div(first_won, first_in)
-        result["ace_rate"] = _safe_div(ace, svpt)
-        result["df_rate"] = _safe_div(df_, svpt)
+        result["ace_rate"]            = _safe_div(ace, svpt)
+        result["df_rate"]             = _safe_div(df_count, svpt)
     else:
-        result = {"first_serve_in_pct": None, "first_serve_won_pct": None, "ace_rate": None, "df_rate": None}
+        result = {"first_serve_in_pct": None, "first_serve_won_pct": None,
+                  "ace_rate": None, "df_rate": None}
 
     return result
 
@@ -186,8 +190,9 @@ def compute_match_features(
     wr_b_50, lhf_b = rolling_win_rate(history, player_b_id, tourney_date, 50)
     wr_a_surf, _ = rolling_win_rate(history, player_a_id, tourney_date, 20, surface=surface)
     wr_b_surf, _ = rolling_win_rate(history, player_b_id, tourney_date, 20, surface=surface)
-    wr_a_12m, _ = rolling_win_rate(history, player_a_id, tourney_date, 9999)
-    wr_b_12m, _ = rolling_win_rate(history, player_b_id, tourney_date, 9999)
+    since_12m = tourney_date - pd.DateOffset(months=12)
+    wr_a_12m, _ = rolling_win_rate(history, player_a_id, tourney_date, 9999, since_date=since_12m)
+    wr_b_12m, _ = rolling_win_rate(history, player_b_id, tourney_date, 9999, since_date=since_12m)
     wr_a_top20, _ = rolling_win_rate(history, player_a_id, tourney_date, 30, max_opponent_rank=20)
     wr_b_top20, _ = rolling_win_rate(history, player_b_id, tourney_date, 30, max_opponent_rank=20)
 
@@ -251,30 +256,50 @@ def build_all_features(
     history: pd.DataFrame,
     elo_state: dict,
 ) -> pd.DataFrame:
-    """Compute features for every complete match in history. Returns feature DataFrame with label."""
+    """Compute features for every complete match in history. Returns balanced feature DataFrame."""
+    import logging
+
     rows = []
     for _, row in history[history["is_complete"]].iterrows():
-        feats = compute_match_features(
+        common_kwargs = dict(
             history=history,
             elo_state=elo_state,
-            player_a_id=row["winner_id"],
-            player_b_id=row["loser_id"],
             surface=row["surface"],
             tourney_level=row.get("tourney_level", "A"),
             round_=row.get("round", "R32"),
             best_of=row.get("best_of", 3),
             tourney_date=row["tourney_date"],
-            player_a_rank=row.get("winner_rank"),
-            player_b_rank=row.get("loser_rank"),
-            player_a_age=row.get("winner_age"),
-            player_b_age=row.get("loser_age"),
-            player_a_height=row.get("winner_ht"),
-            player_b_height=row.get("loser_ht"),
-            player_a_hand=row.get("winner_hand"),
-            player_b_hand=row.get("loser_hand"),
         )
-        feats["label"] = 1  # winner_id is always A
-        feats["tourney_date"] = row["tourney_date"]
-        feats["year"] = row["tourney_date"].year
-        rows.append(feats)
+
+        # Winner as A (label=1)
+        feats_pos = compute_match_features(
+            player_a_id=row["winner_id"], player_b_id=row["loser_id"],
+            player_a_rank=row.get("winner_rank"), player_b_rank=row.get("loser_rank"),
+            player_a_age=row.get("winner_age"), player_b_age=row.get("loser_age"),
+            player_a_height=row.get("winner_ht"), player_b_height=row.get("loser_ht"),
+            player_a_hand=row.get("winner_hand"), player_b_hand=row.get("loser_hand"),
+            **common_kwargs,
+        )
+        feats_pos["label"] = 1
+        feats_pos["tourney_date"] = row["tourney_date"]
+        feats_pos["year"] = row["tourney_date"].year
+        rows.append(feats_pos)
+
+        # Loser as A (label=0)
+        feats_neg = compute_match_features(
+            player_a_id=row["loser_id"], player_b_id=row["winner_id"],
+            player_a_rank=row.get("loser_rank"), player_b_rank=row.get("winner_rank"),
+            player_a_age=row.get("loser_age"), player_b_age=row.get("winner_age"),
+            player_a_height=row.get("loser_ht"), player_b_height=row.get("winner_ht"),
+            player_a_hand=row.get("loser_hand"), player_b_hand=row.get("winner_hand"),
+            **common_kwargs,
+        )
+        feats_neg["label"] = 0
+        feats_neg["tourney_date"] = row["tourney_date"]
+        feats_neg["year"] = row["tourney_date"].year
+        rows.append(feats_neg)
+
+        if len(rows) % 20000 == 0 and len(rows) > 0:
+            logging.getLogger(__name__).info("build_all_features: processed %d rows...", len(rows))
+
     return pd.DataFrame(rows)
