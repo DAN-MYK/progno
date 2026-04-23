@@ -289,4 +289,115 @@ mod tests {
         let result = calculate_kelly_impl(req).unwrap();
         assert_eq!(result.stake, 0.0);
     }
+
+    fn elo_state_integration() -> serde_json::Value {
+        json!({
+            "data_as_of": "2026-04-20",
+            "players": {
+                "alcaraz": {
+                    "elo_overall": 1600, "elo_hard": 1650, "elo_clay": 1550, "elo_grass": 1500,
+                    "matches_played": 10, "matches_played_hard": 5, "matches_played_clay": 3, "matches_played_grass": 2
+                },
+                "sinner": {
+                    "elo_overall": 1500, "elo_hard": 1500, "elo_clay": 1450, "elo_grass": 1500,
+                    "matches_played": 8, "matches_played_hard": 4, "matches_played_clay": 2, "matches_played_grass": 2
+                },
+                "djokovic": {
+                    "elo_overall": 1700, "elo_hard": 1700, "elo_clay": 1700, "elo_grass": 1700,
+                    "matches_played": 20, "matches_played_hard": 10, "matches_played_clay": 5, "matches_played_grass": 5
+                },
+                "medvedev": {
+                    "elo_overall": 1400, "elo_hard": 1400, "elo_clay": 1400, "elo_grass": 1400,
+                    "matches_played": 8, "matches_played_hard": 4, "matches_played_clay": 2, "matches_played_grass": 2
+                }
+            }
+        })
+    }
+
+    #[test]
+    fn test_scenario_1_basic_kelly() {
+        let state = elo_state_integration();
+        let response = predict_text("Alcaraz vs Sinner - Hard", &state);
+        assert_eq!(response.predictions.len(), 1);
+        assert!(response.error.is_none());
+        let pred = &response.predictions[0];
+        assert_eq!(pred.player_a, "Alcaraz");
+        assert_eq!(pred.surface, "Hard");
+        assert!(pred.prob_a_wins > 0.5);
+
+        let result = calculate_kelly_impl(KellyRequest {
+            model_prob: pred.prob_a_wins,
+            decimal_odds: 2.50,
+            bankroll: 1000.0,
+            kelly_fraction: 0.25,
+        }).unwrap();
+        assert!((result.implied_prob - 0.4).abs() < 0.001);
+        assert!(result.edge > 0.0);
+        assert!(result.stake > 0.0);
+    }
+
+    #[test]
+    fn test_scenario_2_negative_edge() {
+        let result = calculate_kelly_impl(KellyRequest {
+            model_prob: 0.6,
+            decimal_odds: 1.20,
+            bankroll: 1000.0,
+            kelly_fraction: 0.25,
+        }).unwrap();
+        assert!((result.implied_prob - 0.8333).abs() < 0.01);
+        assert!(result.edge < 0.0);
+        assert_eq!(result.stake, 0.0);
+    }
+
+    #[test]
+    fn test_scenario_3_bankroll_scaling() {
+        let stake_1000 = calculate_kelly_impl(KellyRequest {
+            model_prob: 0.6, decimal_odds: 2.50, bankroll: 1000.0, kelly_fraction: 0.25,
+        }).unwrap().stake;
+        let stake_2000 = calculate_kelly_impl(KellyRequest {
+            model_prob: 0.6, decimal_odds: 2.50, bankroll: 2000.0, kelly_fraction: 0.25,
+        }).unwrap().stake;
+        assert!((stake_2000 - 2.0 * stake_1000).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_scenario_4_kelly_fraction_scaling() {
+        let s01 = calculate_kelly_impl(KellyRequest { model_prob: 0.6, decimal_odds: 2.50, bankroll: 1000.0, kelly_fraction: 0.1 }).unwrap().stake;
+        let s025 = calculate_kelly_impl(KellyRequest { model_prob: 0.6, decimal_odds: 2.50, bankroll: 1000.0, kelly_fraction: 0.25 }).unwrap().stake;
+        let s05 = calculate_kelly_impl(KellyRequest { model_prob: 0.6, decimal_odds: 2.50, bankroll: 1000.0, kelly_fraction: 0.5 }).unwrap().stake;
+        let s1 = calculate_kelly_impl(KellyRequest { model_prob: 0.6, decimal_odds: 2.50, bankroll: 1000.0, kelly_fraction: 1.0 }).unwrap().stake;
+        assert!((s025 - 2.5 * s01).abs() < 0.01);
+        assert!((s05 - 2.0 * s025).abs() < 0.01);
+        assert!((s1 - 2.0 * s05).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_scenario_5_edge_display() {
+        let pos = calculate_kelly_impl(KellyRequest { model_prob: 0.6, decimal_odds: 2.50, bankroll: 1000.0, kelly_fraction: 0.25 }).unwrap();
+        assert!(pos.edge > 0.0);
+        let neg = calculate_kelly_impl(KellyRequest { model_prob: 0.3, decimal_odds: 2.50, bankroll: 1000.0, kelly_fraction: 0.25 }).unwrap();
+        assert!(neg.edge < 0.0);
+        let zero = calculate_kelly_impl(KellyRequest { model_prob: 0.4, decimal_odds: 2.50, bankroll: 1000.0, kelly_fraction: 0.25 }).unwrap();
+        assert!(zero.edge.abs() < 0.001);
+    }
+
+    #[test]
+    fn test_scenario_6_multiple_matches() {
+        let state = elo_state_integration();
+        let response = predict_text("Alcaraz vs Sinner - Hard\nDjokovic vs Medvedev - Hard", &state);
+        assert_eq!(response.predictions.len(), 2);
+        assert!(response.error.is_none());
+        let r1 = calculate_kelly_impl(KellyRequest { model_prob: response.predictions[0].prob_a_wins, decimal_odds: 2.50, bankroll: 1000.0, kelly_fraction: 0.25 }).unwrap();
+        let r2 = calculate_kelly_impl(KellyRequest { model_prob: response.predictions[1].prob_a_wins, decimal_odds: 3.00, bankroll: 1000.0, kelly_fraction: 0.25 }).unwrap();
+        assert!(r1.stake >= 0.0);
+        assert!(r2.stake >= 0.0);
+    }
+
+    #[test]
+    fn test_scenario_7_empty_input() {
+        let state = json!({"data_as_of": "2026-04-20", "players": {}});
+        let response = predict_text("", &state);
+        assert_eq!(response.predictions.len(), 0);
+        assert!(response.error.is_some());
+    }
 }

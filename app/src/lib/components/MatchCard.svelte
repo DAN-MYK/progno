@@ -3,15 +3,15 @@
   import { bankroll, kelly_fraction } from '../stores'
   import { invoke } from '@tauri-apps/api/core'
 
-  export let prediction: Prediction
+  let { prediction }: { prediction: Prediction } = $props()
 
-  let odds: number | null = null
-  let kellyResult: KellyResult | null = null
-  let loading = false
-  let error: string | null = null
+  let odds = $state<number | null>(null)
+  let kellyResult = $state<KellyResult | null>(null)
+  let loading = $state(false)
+  let error = $state<string | null>(null)
 
-  const probA = Math.round(prediction.prob_a_wins * 1000) / 10
-  const probB = Math.round(prediction.prob_b_wins * 1000) / 10
+  let probA = $derived(Math.round(prediction.prob_a_wins * 1000) / 10)
+  let probB = $derived(Math.round(prediction.prob_b_wins * 1000) / 10)
 
   async function onOddsChange() {
     if (!odds || odds <= 1) {
@@ -41,9 +41,11 @@
     }
   }
 
-  $: if (odds) {
-    onOddsChange()
-  }
+  $effect(() => {
+    if (odds) {
+      onOddsChange()
+    }
+  })
 </script>
 
 <div class="p-6 border-b border-gray-100 hover:bg-gray-50">
@@ -115,7 +117,7 @@
         </span>
       </div>
       <div class="flex justify-between text-xs pt-2 border-t border-blue-200">
-        <span class="font-medium">Stake ({Math.round($kelly_fraction * 100)}× Kelly):</span>
+        <span class="font-medium">Stake ({$kelly_fraction}× Kelly):</span>
         <span
           class="font-bold"
           class:text-blue-600={kellyResult.stake > 0}

@@ -2,7 +2,7 @@
   import { invoke } from '@tauri-apps/api/core'
   import { predictions, loading, error, dataAsOf } from '../stores'
 
-  let textInput = ''
+  let textInput = $state('')
 
   async function handleParse() {
     loading.set(true)
@@ -36,7 +36,7 @@
     placeholder="Alcaraz vs Sinner - Clay&#10;Djokovic vs Zverev - Hard"
   />
   <button
-    on:click={handleParse}
+    onclick={handleParse}
     disabled={$loading}
     class="mt-4 px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
   >
