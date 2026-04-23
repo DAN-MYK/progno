@@ -35,18 +35,14 @@ def test_k_factor_decreases_with_experience() -> None:
 
 
 def test_apply_elo_update_equal_ratings_winner_gains_k_half() -> None:
-    new_winner, new_loser = apply_elo_update(
-        winner_rating=1500, loser_rating=1500, k=32
-    )
+    new_winner, new_loser = apply_elo_update(winner_rating=1500, loser_rating=1500, k=32)
     assert new_winner == pytest.approx(1516.0)
     assert new_loser == pytest.approx(1484.0)
 
 
 def test_apply_elo_update_upset_winner_gains_more() -> None:
     # Lower-rated player wins → gains more than they would at parity
-    new_winner, new_loser = apply_elo_update(
-        winner_rating=1400, loser_rating=1700, k=32
-    )
+    new_winner, new_loser = apply_elo_update(winner_rating=1400, loser_rating=1700, k=32)
     gain = new_winner - 1400
     assert gain > 16.0
 

@@ -58,9 +58,7 @@ def write_players(matches: pd.DataFrame, out_path: Path) -> None:
             "winner_ioc": "country",
         }
     )
-    losers = matches[
-        ["loser_id", "loser_name", "loser_hand", "loser_ht", "loser_ioc"]
-    ].rename(
+    losers = matches[["loser_id", "loser_name", "loser_hand", "loser_ht", "loser_ioc"]].rename(
         columns={
             "loser_id": "player_id",
             "loser_name": "name",

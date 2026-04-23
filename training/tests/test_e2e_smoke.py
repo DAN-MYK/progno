@@ -59,12 +59,7 @@ def test_e2e_pipeline_on_real_data(tmp_path: Path) -> None:
     # Load names via players.parquet for top-20 overall
     players_df = pd.read_parquet(paths.artifacts / "players.parquet")
     elo_by_id = {int(pid): p["elo_overall"] for pid, p in players.items()}
-    top20 = (
-        pd.Series(elo_by_id)
-        .sort_values(ascending=False)
-        .head(20)
-        .index.tolist()
-    )
+    top20 = pd.Series(elo_by_id).sort_values(ascending=False).head(20).index.tolist()
     top20_names = set(players_df.set_index("player_id").loc[top20]["name"].tolist())
 
     overlap = top20_names & KNOWN_TOP_PLAYERS_SINCE_2020

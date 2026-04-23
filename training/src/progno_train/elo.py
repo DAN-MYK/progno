@@ -35,13 +35,13 @@ def apply_elo_update(
 
 
 LEVEL_FACTORS = {
-    "G": 1.00,   # Grand Slam
-    "M": 0.85,   # Masters 1000
-    "A": 0.75,   # ATP 250 / 500 (default)
-    "F": 0.90,   # Tour Finals
-    "D": 0.70,   # Davis Cup
-    "C": 0.50,   # Challenger
-    "S": 0.40,   # ITF Satellite
+    "G": 1.00,  # Grand Slam
+    "M": 0.85,  # Masters 1000
+    "A": 0.75,  # ATP 250 / 500 (default)
+    "F": 0.90,  # Tour Finals
+    "D": 0.70,  # Davis Cup
+    "C": 0.50,  # Challenger
+    "S": 0.40,  # ITF Satellite
 }
 
 ROUND_FACTORS = {
@@ -52,9 +52,9 @@ ROUND_FACTORS = {
     "R32": 0.85,
     "R64": 0.85,
     "R128": 0.85,
-    "RR": 0.90,   # round robin
-    "BR": 0.85,   # bronze
-    "ER": 0.85,   # early round
+    "RR": 0.90,  # round robin
+    "BR": 0.85,  # bronze
+    "ER": 0.85,  # early round
 }
 
 
