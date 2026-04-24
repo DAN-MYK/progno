@@ -21,10 +21,13 @@ _model: CatBoostClassifier | None = None
 _platt_a: float = 1.0
 _platt_b: float = 0.0
 _feature_cols: list[str] = []
+_cat_idx: list[int] = []
 _match_history: pd.DataFrame | None = None
 _elo_state: dict = {}
 _model_card: dict = {}
 _port: int = 0
+
+_CAT_FEATURES = {"surface", "tourney_level", "round"}
 
 
 def _find_free_port() -> int:
@@ -35,7 +38,7 @@ def _find_free_port() -> int:
 
 
 def _load_artifacts(artifacts_dir: Path) -> None:
-    global _model, _platt_a, _platt_b, _feature_cols, _match_history, _elo_state, _model_card
+    global _model, _platt_a, _platt_b, _feature_cols, _cat_idx, _match_history, _elo_state, _model_card
 
     model_path = artifacts_dir / "model.cbm"
     if not model_path.exists():
@@ -50,6 +53,7 @@ def _load_artifacts(artifacts_dir: Path) -> None:
     _model = CatBoostClassifier()
     _model.load_model(str(model_path))
     _feature_cols = _model.feature_names_
+    _cat_idx = [i for i, c in enumerate(_feature_cols) if c in _CAT_FEATURES]
 
     cal = json.loads((artifacts_dir / "calibration.json").read_text())
     _platt_a = cal["a"]
@@ -154,7 +158,7 @@ async def predict(req: PredictRequest) -> PredictResponse:
 
             feat_row = {col: feats.get(col, 0) for col in _feature_cols}
             feat_df = pd.DataFrame([feat_row])
-            pool = Pool(feat_df, feature_names=_feature_cols)
+            pool = Pool(feat_df, cat_features=_cat_idx, feature_names=_feature_cols)
 
             raw = float(_model.predict_proba(pool)[0, 1])
             cal = float(_apply_platt(np.array([raw]))[0])

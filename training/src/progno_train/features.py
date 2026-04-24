@@ -27,6 +27,11 @@ def _build_player_index(history: pd.DataFrame) -> dict[int, pd.DataFrame]:
     if history.empty:
         return {}
 
+    if "is_complete" in history.columns:
+        history = history[history["is_complete"]]
+    if history.empty:
+        return {}
+
     keep = [c for c in _PLAYER_INDEX_BASE_COLS if c in history.columns]
 
     w = history[keep].copy()
@@ -69,13 +74,16 @@ def _player_matches_before(
     if history.empty:
         return pd.DataFrame()
 
+    complete = history["is_complete"] if "is_complete" in history.columns else True
     won_mask = (
         (history["winner_id"] == player_id)
         & (history["tourney_date"] < as_of_date)
+        & complete
     )
     lost_mask = (
         (history["loser_id"] == player_id)
         & (history["tourney_date"] < as_of_date)
+        & complete
     )
     w = history[won_mask].assign(won=True, opponent_rank=history.loc[won_mask, "loser_rank"])
     l = history[lost_mask].assign(won=False, opponent_rank=history.loc[lost_mask, "winner_rank"])
