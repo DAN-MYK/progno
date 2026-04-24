@@ -216,7 +216,100 @@ pub fn calculate_kelly_impl(req: KellyRequest) -> Result<KellyResult, String> {
     let full_kelly = kelly::full_kelly_fraction(req.model_prob, req.decimal_odds);
     let fractional_kelly = kelly::fractional_kelly(req.model_prob, req.decimal_odds, req.kelly_fraction);
     let stake = kelly::stake_from_kelly(req.bankroll, fractional_kelly);
-    Ok(KellyResult { implied_prob, edge, full_kelly, fractional_kelly, stake })
+
+    Ok(KellyResult {
+        implied_prob,
+        edge,
+        full_kelly,
+        fractional_kelly,
+        stake,
+    })
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct PlayerSuggestion {
+    pub name: String,
+    pub player_id: String,
+    pub elo: f64,
+    pub matches: u64,
+}
+
+#[cfg(not(test))]
+#[tauri::command]
+pub fn search_players(query: String, app_state: tauri::State<AppState>) -> Vec<PlayerSuggestion> {
+    if query.len() < 2 {
+        return vec![];
+    }
+    let q = query.to_lowercase();
+    // Search ATP Elo state (tour-agnostic player lookup for autocomplete)
+    let guard = app_state.elo_atp.lock().unwrap();
+    let elo = match &*guard {
+        None => return vec![],
+        Some(e) => e,
+    };
+
+    let mut results: Vec<PlayerSuggestion> = Vec::new();
+
+    // Prefer name_to_id (canonical full names → numeric player IDs)
+    if let Some(name_map) = elo.get("name_to_id").and_then(|v| v.as_object()) {
+        if !name_map.is_empty() {
+            for (name, pid_val) in name_map {
+                if name.to_lowercase().starts_with(&q) {
+                    if let Some(pid) = pid_val.as_str() {
+                        let pdata = elo.get("players").and_then(|p| p.get(pid));
+                        let elo_val = pdata
+                            .and_then(|d| d.get("elo_overall"))
+                            .and_then(|v| v.as_f64())
+                            .unwrap_or(1500.0);
+                        let mp = pdata
+                            .and_then(|d| d.get("matches_played"))
+                            .and_then(|v| v.as_u64())
+                            .unwrap_or(0);
+                        results.push(PlayerSuggestion {
+                            name: name.clone(),
+                            player_id: pid.to_string(),
+                            elo: elo_val,
+                            matches: mp,
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    // Fall back to players keys (lowercase surname IDs used in current elo_state)
+    if results.is_empty() {
+        if let Some(players) = elo.get("players").and_then(|v| v.as_object()) {
+            for (key, data) in players {
+                if key.starts_with(&q) {
+                    let elo_val = data
+                        .get("elo_overall")
+                        .and_then(|v| v.as_f64())
+                        .unwrap_or(1500.0);
+                    let mp = data
+                        .get("matches_played")
+                        .and_then(|v| v.as_u64())
+                        .unwrap_or(0);
+                    let name = {
+                        let mut chars = key.chars();
+                        chars.next()
+                            .map(|c| c.to_uppercase().collect::<String>() + chars.as_str())
+                            .unwrap_or_default()
+                    };
+                    results.push(PlayerSuggestion {
+                        name,
+                        player_id: key.clone(),
+                        elo: elo_val,
+                        matches: mp,
+                    });
+                }
+            }
+        }
+    }
+
+    results.sort_by(|a, b| b.matches.cmp(&a.matches));
+    results.truncate(6);
+    results
 }
 
 #[cfg(test)]

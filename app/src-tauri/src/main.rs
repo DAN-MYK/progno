@@ -42,6 +42,7 @@ fn main() {
             commands::get_data_as_of_cmd,
             commands::calculate_kelly,
             commands::predict_with_ml,
+            commands::search_players,
         ])
         .run(tauri::generate_context!())
         .map_err(|e| eprintln!("Failed to run Tauri: {}", e))
