@@ -21,10 +21,13 @@ import features as feat_module
 
 _models: dict[str, CatBoostClassifier | None] = {"atp": None, "wta": None}
 _platt: dict[str, tuple[float, float]] = {"atp": (1.0, 0.0), "wta": (1.0, 0.0)}
+_cat_idx: dict[str, list[int]] = {"atp": [], "wta": []}
 _history: dict[str, pd.DataFrame | None] = {"atp": None, "wta": None}
 _elo_state: dict[str, dict] = {"atp": {}, "wta": {}}
 _model_card: dict[str, dict] = {"atp": {}, "wta": {}}
 _port: int = 0
+
+_CAT_FEATURES = {"surface", "tourney_level", "round"}
 
 
 def _find_free_port() -> int:
@@ -43,6 +46,7 @@ def _load_tour(artifacts_root: Path, tour: str) -> None:
     m = CatBoostClassifier()
     m.load_model(str(model_path))
     _models[tour] = m
+    _cat_idx[tour] = [i for i, c in enumerate(m.feature_names_) if c in _CAT_FEATURES]
 
     cal = json.loads((tour_dir / "calibration.json").read_text())
     _platt[tour] = (cal["a"], cal["b"])
@@ -143,7 +147,7 @@ async def predict(req: PredictRequest) -> PredictResponse:
         low_history = bool(feats.get("low_history_flag", 0))
         feature_cols = _models[tour].feature_names_
         feat_df = pd.DataFrame([{col: feats.get(col, 0) for col in feature_cols}])
-        pool = Pool(feat_df, feature_names=list(feature_cols))
+        pool = Pool(feat_df, cat_features=_cat_idx[tour], feature_names=list(feature_cols))
 
         raw = float(_models[tour].predict_proba(pool)[0, 1])
         cal = float(_apply_platt(np.array([raw]), tour)[0])

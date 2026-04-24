@@ -99,14 +99,15 @@ def run_walk_forward(
     cal_df = df[df["year"] == CAL_YEAR]
     final_train = df[(df["year"] > burn_in_year) & (df["year"] < CAL_YEAR)]
 
+    cat_idx = [i for i, c in enumerate(feature_cols) if c in CAT_FEATURES]
     model = _train_catboost(final_train, cal_df, feature_cols)
 
-    cal_pool = Pool(cal_df[feature_cols].fillna(0), feature_names=feature_cols)
+    cal_pool = Pool(cal_df[feature_cols].fillna(0), cat_features=cat_idx, feature_names=feature_cols)
     raw_cal = model.predict_proba(cal_pool)[:, 1]
     a, b = fit_platt(raw_cal, cal_df["label"].values)
 
     test_df = df[df["year"] >= TEST_START_YEAR]
-    test_pool = Pool(test_df[feature_cols].fillna(0), feature_names=feature_cols)
+    test_pool = Pool(test_df[feature_cols].fillna(0), cat_features=cat_idx, feature_names=feature_cols)
     raw_test = model.predict_proba(test_pool)[:, 1]
     cal_test = apply_platt(raw_test, a, b)
 
