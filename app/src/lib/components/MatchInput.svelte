@@ -176,7 +176,7 @@
 </script>
 
 <div class="input-section">
-  <div class="field-wrap" role="combobox" aria-expanded={showDropdown} aria-haspopup="listbox">
+  <div class="field-wrap" role="combobox" aria-expanded={showDropdown} aria-haspopup="listbox" aria-controls="autocomplete-list">
     <input
       bind:this={inputEl}
       bind:value={textInput}

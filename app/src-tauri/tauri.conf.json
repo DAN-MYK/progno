@@ -23,12 +23,11 @@
     }
   },
   "bundle": {
-    "externalBin": ["../sidecar/dist/progno-sidecar"]
+    "externalBin": ["../../sidecar/dist/progno-sidecar"]
   },
   "plugins": {
     "shell": {
-      "open": false,
-      "sidecar": true
+      "open": false
     }
   }
 }

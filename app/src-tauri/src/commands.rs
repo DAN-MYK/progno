@@ -192,10 +192,8 @@ fn resolve_player(
 }
 
 fn predict_match(m: &ParsedMatch, state: &serde_json::Value) -> Result<PredictionResult, String> {
-    let id_a = normalize_player_id(&m.player_a);
-    let id_b = normalize_player_id(&m.player_b);
-    let (elo_a_overall, elo_a_composite) = resolve_player(state, &id_a, &m.surface)?;
-    let (elo_b_overall, elo_b_composite) = resolve_player(state, &id_b, &m.surface)?;
+    let (elo_a_overall, elo_a_composite) = resolve_player(state, &m.player_a, &m.surface)?;
+    let (elo_b_overall, elo_b_composite) = resolve_player(state, &m.player_b, &m.surface)?;
     let prob_a = expected_probability(elo_a_composite, elo_b_composite);
     Ok(PredictionResult {
         player_a: m.player_a.clone(),
@@ -277,11 +275,11 @@ pub fn search_players(query: String, app_state: tauri::State<AppState>) -> Vec<P
         }
     }
 
-    // Fall back to players keys (lowercase surname IDs used in current elo_state)
+    // Fall back to players keys (full names as keys in current elo_state)
     if results.is_empty() {
         if let Some(players) = elo.get("players").and_then(|v| v.as_object()) {
             for (key, data) in players {
-                if key.starts_with(&q) {
+                if key.to_lowercase().starts_with(&q) {
                     let elo_val = data
                         .get("elo_overall")
                         .and_then(|v| v.as_f64())
@@ -290,14 +288,8 @@ pub fn search_players(query: String, app_state: tauri::State<AppState>) -> Vec<P
                         .get("matches_played")
                         .and_then(|v| v.as_u64())
                         .unwrap_or(0);
-                    let name = {
-                        let mut chars = key.chars();
-                        chars.next()
-                            .map(|c| c.to_uppercase().collect::<String>() + chars.as_str())
-                            .unwrap_or_default()
-                    };
                     results.push(PlayerSuggestion {
-                        name,
+                        name: key.clone(),
                         player_id: key.clone(),
                         elo: elo_val,
                         matches: mp,
