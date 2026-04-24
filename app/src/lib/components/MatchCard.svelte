@@ -12,6 +12,11 @@
 
   let probA = $derived(Math.round(prediction.prob_a_wins * 1000) / 10)
   let probB = $derived(Math.round(prediction.prob_b_wins * 1000) / 10)
+  let mlProbA = $derived(
+    prediction.ml_prob_a_wins != null
+      ? Math.round(prediction.ml_prob_a_wins * 1000) / 10
+      : null
+  )
 
   async function onOddsChange() {
     if (!odds || odds <= 1) {
@@ -126,6 +131,18 @@
           ${Math.round(kellyResult.stake * 100) / 100}
         </span>
       </div>
+    </div>
+  {/if}
+
+  {#if mlProbA != null}
+    <div class="mt-3 p-3 bg-purple-50 rounded text-xs space-y-1">
+      <div class="flex justify-between">
+        <span class="text-purple-700 font-medium">ML model ({prediction.player_a}):</span>
+        <span class="font-bold text-purple-800">{mlProbA}%</span>
+      </div>
+      {#if prediction.confidence_flag === 'low_history'}
+        <div class="text-orange-600">⚠ Low match history — prediction less reliable</div>
+      {/if}
     </div>
   {/if}
 

@@ -9,9 +9,12 @@
     error.set(null)
 
     try {
-      const result = await invoke('parse_and_predict', {
-        text: textInput,
-        tour: $selectedTour,
+      const result = await invoke('predict_with_ml', {
+        request: {
+          text: textInput,
+          tour: $selectedTour,
+          tourney_date: new Date().toISOString().slice(0, 10),
+        },
       })
 
       if (result.error) {
