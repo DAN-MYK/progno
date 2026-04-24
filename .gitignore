@@ -93,3 +93,7 @@ notes.txt
 app/src-tauri/target/
 app/node_modules/
 app/dist/
+
+# Sidecar compiled binaries
+sidecar/dist/
+app/sidecar/dist/
