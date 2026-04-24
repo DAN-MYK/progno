@@ -97,9 +97,11 @@ def run_walk_forward(featurized_path: Path) -> tuple[CatBoostClassifier, float, 
     pre_cal_train = df[df["year"] < 2022]      # for calibration model
     final_train = df[df["year"] < 2023]         # for deployment model
 
+    cat_idx = [i for i, c in enumerate(feature_cols) if c in CAT_FEATURES]
+
     # Calibration model: trained on <2022, predictions on 2022 are truly out-of-sample
     cal_model = train_catboost(pre_cal_train, cal_df, feature_cols)
-    cal_pool = Pool(cal_df[feature_cols].fillna(0), feature_names=feature_cols)
+    cal_pool = Pool(cal_df[feature_cols].fillna(0), cat_features=cat_idx, feature_names=feature_cols)
     raw_cal = cal_model.predict_proba(cal_pool)[:, 1]
     a, b = fit_platt(raw_cal, cal_df["label"].values)
 
@@ -108,7 +110,7 @@ def run_walk_forward(featurized_path: Path) -> tuple[CatBoostClassifier, float, 
 
     # Evaluate on test years (2023+)
     test_df = df[df["year"] >= 2023]
-    test_pool = Pool(test_df[feature_cols].fillna(0), feature_names=feature_cols)
+    test_pool = Pool(test_df[feature_cols].fillna(0), cat_features=cat_idx, feature_names=feature_cols)
     raw_test = model.predict_proba(test_pool)[:, 1]
     cal_test = apply_platt(raw_test, a, b)
 
