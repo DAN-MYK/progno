@@ -155,8 +155,10 @@ def run_validate(paths: Paths) -> None:
     df = pd.read_parquet(paths.featurized)
     test_df = df[df["year"] >= 2023]
     feature_cols = get_feature_cols(df)
+    from progno_train.train import CAT_FEATURES
+    cat_idx = [i for i, c in enumerate(feature_cols) if c in CAT_FEATURES]
 
-    pool = Pool(test_df[feature_cols].fillna(0), feature_names=feature_cols)
+    pool = Pool(test_df[feature_cols].fillna(0), cat_features=cat_idx, feature_names=feature_cols)
     raw = model.predict_proba(pool)[:, 1]
     cal_probs = apply_platt(raw, a, b)
 
