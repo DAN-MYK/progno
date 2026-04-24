@@ -21,5 +21,13 @@
     "security": {
       "csp": "default-src 'self'; style-src 'self' 'unsafe-inline';"
     }
+  },
+  "bundle": {
+    "externalBin": ["../../sidecar/dist/progno-sidecar"]
+  },
+  "plugins": {
+    "shell": {
+      "open": false
+    }
   }
 }

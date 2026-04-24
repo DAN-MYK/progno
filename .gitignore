@@ -93,3 +93,15 @@ notes.txt
 app/src-tauri/target/
 app/node_modules/
 app/dist/
+
+# Sidecar compiled binaries
+sidecar/dist/
+app/sidecar/dist/
+sidecar/build/
+
+# Windows dev machine specifics
+app/src-tauri/artifacts/
+app/vite.config.ts.timestamp-*.mjs
+
+# Superpowers plugin cache
+.superpowers/

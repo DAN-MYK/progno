@@ -16,8 +16,9 @@ FIXTURE = Path(__file__).parent / "fixtures" / "mini_atp_matches.csv"
 @pytest.fixture()
 def paths(tmp_path: Path) -> Paths:
     raw = tmp_path / "raw"
-    raw.mkdir()
-    shutil.copy(FIXTURE, raw / "atp_matches_2024.csv")
+    atp_dir = raw / "tennis_atp"
+    atp_dir.mkdir(parents=True)
+    shutil.copy(FIXTURE, atp_dir / "atp_matches_2024.csv")
     return Paths(
         data_raw=raw,
         data_staging=tmp_path / "staging",
@@ -26,9 +27,9 @@ def paths(tmp_path: Path) -> Paths:
 
 
 def test_run_ingest_writes_staging_parquet(paths: Paths) -> None:
-    rc = run_ingest(paths)
+    rc = run_ingest(paths, "atp")
     assert rc == 0
-    out = paths.data_staging / "matches_clean.parquet"
+    out = paths.matches_clean
     assert out.exists()
     df = pd.read_parquet(out)
     assert len(df) > 0
@@ -36,7 +37,7 @@ def test_run_ingest_writes_staging_parquet(paths: Paths) -> None:
 
 
 def test_run_elo_writes_artifacts(paths: Paths) -> None:
-    run_ingest(paths)
+    run_ingest(paths, "atp")
     rc = run_elo(paths)
     assert rc == 0
     assert (paths.artifacts / "elo_state.json").exists()
