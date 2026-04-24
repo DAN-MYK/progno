@@ -72,7 +72,11 @@ def run_elo(paths: Paths) -> int:
         matches[["winner_id", "winner_name"]].rename(columns={"winner_id": "id", "winner_name": "name"}),
         matches[["loser_id", "loser_name"]].rename(columns={"loser_id": "id", "loser_name": "name"}),
     ]).drop_duplicates("id")
-    player_names = {int(row.id): row.name.split()[-1].lower() for row in all_names.itertuples()}
+    player_names = {
+        int(row.id): parts[-1].lower()
+        for row in all_names.itertuples()
+        if (parts := str(row.name).split())
+    }
     paths.artifacts.mkdir(parents=True, exist_ok=True)
     write_elo_state(state, paths.elo_state, data_as_of=data_as_of, player_names=player_names)
     write_players(matches, paths.players)
@@ -81,19 +85,22 @@ def run_elo(paths: Paths) -> int:
     return 0
 
 
-def run_features(paths: Paths) -> int:
+def run_features(paths: Paths, tour: str = "atp") -> int:
     from progno_train.features import build_all_features
+    from progno_train.train import BURN_IN_YEAR_ATP, BURN_IN_YEAR_WTA
 
     if not paths.match_history.exists():
         log.error("no match_history at %s; run elo first", paths.match_history)
         return 2
 
+    min_year = BURN_IN_YEAR_ATP if tour == "atp" else BURN_IN_YEAR_WTA
+
     log.info("loading match history for feature engineering...")
     history = pd.read_parquet(paths.match_history)
     elo_state = json.loads(paths.elo_state.read_text())
 
-    log.info("building features for %d matches...", len(history))
-    featurized = build_all_features(history, elo_state)
+    log.info("building features for %d matches (min_year=%d)...", len(history), min_year)
+    featurized = build_all_features(history, elo_state, min_year=min_year)
     paths.featurized.parent.mkdir(parents=True, exist_ok=True)
     featurized.to_parquet(paths.featurized, index=False)
     log.info("featurized dataset written: %s (%d rows)", paths.featurized, len(featurized))
@@ -209,7 +216,7 @@ def main() -> int:
         "update_data": lambda: run_update_data(paths),
         "ingest": lambda: run_ingest(paths, args.tour),
         "elo": lambda: run_elo(paths),
-        "features": lambda: run_features(paths),
+        "features": lambda: run_features(paths, args.tour),
         "train": lambda: run_train(paths, args.tour),
         "validate": lambda: run_validate(paths),
         "retrain": lambda: run_retrain(paths, args.tour, getattr(args, "version", "dev")),

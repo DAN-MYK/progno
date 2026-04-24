@@ -71,12 +71,22 @@ def ingest_sackmann_csv(paths: Iterable[Path]) -> pd.DataFrame:
     frames = [pd.read_csv(p, low_memory=False) for p in paths]
     df = pd.concat(frames, ignore_index=True)
 
-    df["tourney_date"] = pd.to_datetime(df["tourney_date"], format="%Y%m%d")
+    df["tourney_date"] = pd.to_datetime(df["tourney_date"], format="%Y%m%d", errors="coerce")
+    df = df.dropna(subset=["tourney_date"])
     df["score"] = df["score"].fillna("").astype(str)
 
     parsed = df["score"].apply(parse_score)
     df["is_complete"] = parsed.apply(lambda p: p.is_complete)
     df["completed_sets"] = parsed.apply(lambda p: p.completed_sets)
+
+    # Fix mixed-type object columns (e.g. draw_size has ints + NaN across old/new CSVs)
+    for col in df.select_dtypes(include="object").columns:
+        if col in ("score", "tourney_id", "tourney_name", "surface", "tourney_level",
+                   "round", "winner_name", "loser_name", "winner_hand", "loser_hand",
+                   "winner_ioc", "loser_ioc"):
+            df[col] = df[col].fillna("").astype(str)
+        else:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
 
     df = df.sort_values(["tourney_date", "match_num"]).reset_index(drop=True)
     return df
