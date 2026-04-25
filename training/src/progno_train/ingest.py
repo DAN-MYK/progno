@@ -78,6 +78,8 @@ def ingest_sackmann_csv(paths: Iterable[Path]) -> pd.DataFrame:
     parsed = df["score"].apply(parse_score)
     df["is_complete"] = parsed.apply(lambda p: p.is_complete)
     df["completed_sets"] = parsed.apply(lambda p: p.completed_sets)
+    df["w_sets"] = parsed.apply(lambda p: p.winner_set_count)
+    df["l_sets"] = parsed.apply(lambda p: p.loser_set_count)
 
     # Fix mixed-type object columns (e.g. draw_size has ints + NaN across old/new CSVs)
     for col in df.select_dtypes(include="object").columns:
