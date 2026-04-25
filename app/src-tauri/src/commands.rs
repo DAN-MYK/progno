@@ -150,6 +150,10 @@ pub async fn predict_with_ml(
         player_a_id: normalize_player_id(&p.player_a),
         player_b_id: normalize_player_id(&p.player_b),
         surface: p.surface.clone(),
+        // Note: parser.rs only extracts player names and surface from pasted text.
+        // Tournament metadata (level, round, best_of) is unavailable from paste input.
+        // These defaults (ATP 250, R32, BO3) are used for all matches.
+        // TODO(Phase 5): allow users to specify tournament context for better model calibration.
         tourney_level: "A".to_string(),
         round_: "R32".to_string(),
         best_of: 3,

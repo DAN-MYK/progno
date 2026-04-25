@@ -29,10 +29,10 @@ fn main() {
         .plugin(tauri_plugin_shell::init())
         .setup(|app| {
             if let Ok(elo) = artifacts::load_elo_state_for_tour("atp") {
-                *app.state::<AppState>().elo_atp.lock().unwrap() = Some(elo);
+                *app.state::<AppState>().elo_atp.lock().expect("Mutex poisoned during setup") = Some(elo);
             }
             if let Ok(elo) = artifacts::load_elo_state_for_tour("wta") {
-                *app.state::<AppState>().elo_wta.lock().unwrap() = Some(elo);
+                *app.state::<AppState>().elo_wta.lock().expect("Mutex poisoned during setup") = Some(elo);
             }
             let artifacts_root = std::env::current_dir()
                 .unwrap_or_default()
