@@ -1,6 +1,6 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core'
-  import { predictions, loading, error, dataAsOf, selectedTour } from '../stores'
+  import { predictions, loading, error, dataAsOf, mlAvailable, selectedTour } from '../stores'
 
   let textInput = $state('')
 
@@ -22,6 +22,7 @@
       } else {
         predictions.set(result.predictions)
         dataAsOf.set(result.data_as_of)
+        mlAvailable.set(result.ml_available ?? false)
       }
     } catch (err) {
       error.set(String(err))

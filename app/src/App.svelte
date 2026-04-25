@@ -4,7 +4,7 @@
   import MatchInput from './lib/components/MatchInput.svelte'
   import MatchCard from './lib/components/MatchCard.svelte'
   import Footer from './lib/components/Footer.svelte'
-  import { predictions, error, bankroll, kelly_fraction, selectedTour } from './lib/stores'
+  import { predictions, error, bankroll, kelly_fraction, selectedTour, dataAsOf, mlAvailable } from './lib/stores'
 
   onMount(async () => {
     const store = await load('settings.json', { autoSave: true })
@@ -21,6 +21,13 @@
     kelly_fraction.subscribe(v => store.set('kelly_fraction', v))
     selectedTour.subscribe(v => store.set('tour', v))
   })
+
+  function isDataStale(dateStr: string): boolean {
+    if (!dateStr || dateStr === 'unknown') return false
+    const asOf = new Date(dateStr)
+    const diffDays = (Date.now() - asOf.getTime()) / 86_400_000
+    return diffDays > 14
+  }
 </script>
 
 <div class="min-h-screen flex flex-col bg-white">
@@ -61,6 +68,18 @@
       </div>
     </div>
   </header>
+
+  {#if $mlAvailable === false && $predictions.length > 0}
+    <div class="bg-yellow-50 border-l-4 border-yellow-400 px-6 py-3 text-sm text-yellow-800">
+      ML service unavailable — showing Elo predictions only. Run <code class="font-mono">just build-sidecar</code> to enable the ML model.
+    </div>
+  {/if}
+
+  {#if isDataStale($dataAsOf)}
+    <div class="bg-orange-50 border-l-4 border-orange-400 px-6 py-3 text-sm text-orange-800">
+      Model data is stale (as of {$dataAsOf}). Consider retraining: <code class="font-mono">just retrain &lt;version&gt;</code>
+    </div>
+  {/if}
 
   <MatchInput />
 

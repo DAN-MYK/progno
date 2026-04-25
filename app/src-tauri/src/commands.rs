@@ -47,6 +47,7 @@ pub struct PredictResponse {
     pub predictions: Vec<PredictionResult>,
     pub data_as_of: String,
     pub error: Option<String>,
+    pub ml_available: bool,
 }
 
 pub fn predict_text(text: &str, elo_state: &serde_json::Value) -> PredictResponse {
@@ -56,6 +57,7 @@ pub fn predict_text(text: &str, elo_state: &serde_json::Value) -> PredictRespons
             predictions: vec![],
             data_as_of: "unknown".to_string(),
             error: Some(e),
+            ml_available: false,
         },
     };
 
@@ -74,7 +76,7 @@ pub fn predict_text(text: &str, elo_state: &serde_json::Value) -> PredictRespons
     } else {
         None
     };
-    PredictResponse { predictions, data_as_of, error }
+    PredictResponse { predictions, data_as_of, error, ml_available: false }
 }
 
 #[cfg(not(test))]
@@ -93,6 +95,7 @@ pub fn parse_and_predict(
             predictions: vec![],
             data_as_of: "unknown".to_string(),
             error: Some(format!("Elo data for {} not loaded. Run 'just elo' first.", tour.to_uppercase())),
+            ml_available: false,
         },
         Some(state) => predict_text(&text, state),
     }
@@ -183,7 +186,7 @@ pub async fn predict_with_ml(
                     elo_pred
                 })
                 .collect();
-            Ok(PredictResponse { predictions: enriched, ..elo_resp })
+            Ok(PredictResponse { predictions: enriched, ml_available: true, ..elo_resp })
         }
         Err(e) => {
             eprintln!("[ml] predict failed: {e}, falling back to Elo");

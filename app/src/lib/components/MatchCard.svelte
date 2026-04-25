@@ -9,12 +9,19 @@
   let kellyResult = $state<KellyResult | null>(null)
   let loading = $state(false)
   let error = $state<string | null>(null)
+  let showBreakdown = $state(false)
 
   let probA = $derived(Math.round(prediction.prob_a_wins * 1000) / 10)
   let probB = $derived(Math.round(prediction.prob_b_wins * 1000) / 10)
   let mlProbA = $derived(
     prediction.ml_prob_a_wins != null
       ? Math.round(prediction.ml_prob_a_wins * 1000) / 10
+      : null
+  )
+  let eloProbA = $derived(Math.round(prediction.prob_a_wins * 1000) / 10)
+  let mlAdjustment = $derived(
+    prediction.ml_prob_a_wins != null
+      ? Math.round((prediction.ml_prob_a_wins - prediction.prob_a_wins) * 1000) / 10
       : null
   )
 
@@ -31,7 +38,7 @@
     try {
       const result = await invoke<KellyResult>('calculate_kelly', {
         request: {
-          model_prob: prediction.prob_a_wins,
+          model_prob: prediction.ml_prob_a_wins ?? prediction.prob_a_wins,
           decimal_odds: odds,
           bankroll: $bankroll,
           kelly_fraction: $kelly_fraction,
@@ -63,12 +70,14 @@
     <div>
       <div class="flex justify-between items-center mb-1">
         <span class="text-sm font-medium">{prediction.player_a}</span>
-        <span class="text-sm font-bold text-blue-600">{probA}%</span>
+        <span class="text-sm font-bold text-blue-600">
+          {mlProbA ?? probA}%
+        </span>
       </div>
       <div class="h-6 bg-gray-200 rounded-sm overflow-hidden">
         <div
           class="h-full bg-blue-500"
-          style="width: {probA}%"
+          style="width: {mlProbA ?? probA}%"
         />
       </div>
     </div>
@@ -76,16 +85,59 @@
     <div>
       <div class="flex justify-between items-center mb-1">
         <span class="text-sm font-medium">{prediction.player_b}</span>
-        <span class="text-sm font-bold text-red-600">{probB}%</span>
+        <span class="text-sm font-bold text-red-600">
+          {mlProbA != null ? Math.round((100 - mlProbA) * 10) / 10 : probB}%
+        </span>
       </div>
       <div class="h-6 bg-gray-200 rounded-sm overflow-hidden">
         <div
           class="h-full bg-red-500"
-          style="width: {probB}%"
+          style="width: {mlProbA != null ? 100 - mlProbA : probB}%"
         />
       </div>
     </div>
   </div>
+
+  {#if mlProbA != null}
+    <div class="mt-3">
+      <button
+        onclick={() => showBreakdown = !showBreakdown}
+        class="text-xs text-purple-600 hover:text-purple-800 underline"
+      >
+        {showBreakdown ? 'Hide' : 'Show'} model breakdown
+      </button>
+
+      {#if showBreakdown}
+        <div class="mt-2 p-3 bg-purple-50 rounded text-xs space-y-1 font-mono">
+          <div class="flex justify-between">
+            <span class="text-gray-600">Elo baseline ({prediction.player_a}):</span>
+            <span class="font-semibold">{eloProbA}%</span>
+          </div>
+          <div
+            class="flex justify-between"
+            class:text-green-700={mlAdjustment != null && mlAdjustment > 0}
+            class:text-red-700={mlAdjustment != null && mlAdjustment < 0}
+          >
+            <span>ML adjustment:</span>
+            <span class="font-semibold">
+              {mlAdjustment != null ? (mlAdjustment > 0 ? '+' : '') + mlAdjustment + '%' : '—'}
+            </span>
+          </div>
+          <div class="flex justify-between border-t border-purple-200 pt-1">
+            <span class="font-medium text-purple-800">CatBoost calibrated:</span>
+            <span class="font-bold text-purple-800">{mlProbA}%</span>
+          </div>
+          {#if prediction.confidence_flag === 'low_history'}
+            <div class="text-orange-600 pt-1">Warning: low match history</div>
+          {:else if prediction.confidence_flag === 'insufficient_data'}
+            <div class="text-red-600 pt-1">Warning: insufficient data</div>
+          {:else if prediction.confidence_flag === 'low_context'}
+            <div class="text-gray-500 pt-1">Note: default tournament context used</div>
+          {/if}
+        </div>
+      {/if}
+    </div>
+  {/if}
 
   <div class="mt-4 p-4 bg-gray-50 rounded">
     <label class="text-xs font-semibold text-gray-600 block mb-2">
@@ -131,18 +183,6 @@
           ${Math.round(kellyResult.stake * 100) / 100}
         </span>
       </div>
-    </div>
-  {/if}
-
-  {#if mlProbA != null}
-    <div class="mt-3 p-3 bg-purple-50 rounded text-xs space-y-1">
-      <div class="flex justify-between">
-        <span class="text-purple-700 font-medium">ML model ({prediction.player_a}):</span>
-        <span class="font-bold text-purple-800">{mlProbA}%</span>
-      </div>
-      {#if prediction.confidence_flag === 'low_history'}
-        <div class="text-orange-600">⚠ Low match history — prediction less reliable</div>
-      {/if}
     </div>
   {/if}
 

@@ -24,6 +24,7 @@ export const predictions = writable<Prediction[]>([])
 export const loading = writable(false)
 export const error = writable<string | null>(null)
 export const dataAsOf = writable('unknown')
+export const mlAvailable = writable<boolean | null>(null)
 
 // Phase 2: Kelly settings
 export const bankroll = writable(1000)
