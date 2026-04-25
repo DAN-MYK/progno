@@ -9,6 +9,9 @@ import pandas as pd
 
 POPULATION_WIN_RATE = 0.5
 LOW_HISTORY_THRESHOLD = 5
+POPULATION_SECOND_WON_PCT = 0.50
+POPULATION_BP_SAVE_PCT = 0.63
+POPULATION_RETURN_PTS_PCT = 0.38
 
 _PLAYER_INDEX_BASE_COLS = [
     "tourney_date", "surface",
@@ -207,6 +210,62 @@ def serve_efficiency(
             "ace_rate": None, "df_rate": None}
 
 
+def _rolling_serve_stats(
+    history: pd.DataFrame,
+    player_id: int,
+    as_of_date: pd.Timestamp,
+    n: int = 25,
+    min_periods: int = 5,
+    *,
+    _frame: pd.DataFrame | None = None,
+) -> dict[str, float | None]:
+    """Rolling second_won_pct, bp_save_pct, return_pts_pct over last n matches."""
+    base = _frame if _frame is not None else _player_matches_before(history, player_id, as_of_date)
+    df = base.tail(n)
+
+    if len(df) < min_periods:
+        return {"second_won_pct": None, "bp_save_pct": None, "return_pts_pct": None}
+
+    eps = 1e-6
+    won_df = df[df["won"]] if "won" in df.columns else df
+    lost_df = df[~df["won"]] if "won" in df.columns else pd.DataFrame()
+
+    # second_won_pct: second-serve points won / second-serve points played
+    w2w = won_df["w_2ndWon"].fillna(0).sum()
+    l2l = lost_df["l_2ndWon"].fillna(0).sum()
+    w_svpt = won_df["w_svpt"].fillna(0).sum()
+    w_1stIn = won_df["w_1stIn"].fillna(0).sum()
+    l_svpt_p = lost_df["l_svpt"].fillna(0).sum()
+    l_1stIn_p = lost_df["l_1stIn"].fillna(0).sum()
+    second_denom = (w_svpt - w_1stIn) + (l_svpt_p - l_1stIn_p)
+    second_won_pct: float | None = float((w2w + l2l) / second_denom) if second_denom > eps else None
+
+    # bp_save_pct: break points saved / break points faced (on own serve)
+    bp_saved = won_df["w_bpSaved"].fillna(0).sum() + lost_df["l_bpSaved"].fillna(0).sum()
+    bp_faced = won_df["w_bpFaced"].fillna(0).sum() + lost_df["l_bpFaced"].fillna(0).sum()
+    bp_save_pct: float | None = float(bp_saved / bp_faced) if bp_faced > eps else None
+
+    # return_pts_pct: return points won / opponent serve points
+    # When player won: opponent is loser → use l_* columns
+    # When player lost: opponent is winner → use w_* columns
+    opp_svpt = won_df["l_svpt"].fillna(0).sum() + lost_df["w_svpt"].fillna(0).sum()
+    opp_pts_won = (
+        won_df["l_svpt"].fillna(0).sum()
+        - won_df["l_1stWon"].fillna(0).sum()
+        - won_df["l_2ndWon"].fillna(0).sum()
+        + lost_df["w_svpt"].fillna(0).sum()
+        - lost_df["w_1stWon"].fillna(0).sum()
+        - lost_df["w_2ndWon"].fillna(0).sum()
+    )
+    return_pts_pct: float | None = float(opp_pts_won / opp_svpt) if opp_svpt > eps else None
+
+    return {
+        "second_won_pct": second_won_pct,
+        "bp_save_pct": bp_save_pct,
+        "return_pts_pct": return_pts_pct,
+    }
+
+
 def h2h_score(
     history: pd.DataFrame,
     player_a_id: int,
@@ -319,6 +378,30 @@ def compute_match_features(
     surf_key = surface.lower() if isinstance(surface, str) else "hard"
     feats["elo_overall_diff"] = _elo(player_a_id, "elo_overall") - _elo(player_b_id, "elo_overall")
     feats["elo_surface_diff"] = _elo(player_a_id, f"elo_{surf_key}") - _elo(player_b_id, f"elo_{surf_key}")
+
+    feats["welo_overall_diff"] = _elo(player_a_id, "welo_overall") - _elo(player_b_id, "welo_overall")
+
+    def _welo_surf(pid: int) -> float:
+        n_surf = int(_elo(pid, f"matches_played_{surf_key}") or 0)
+        welo_surf = _elo(pid, f"welo_{surf_key}")
+        welo_ovrl = _elo(pid, "welo_overall")
+        if n_surf >= 20:
+            return 0.5 * welo_surf + 0.5 * welo_ovrl
+        return welo_ovrl
+
+    feats["welo_surface_diff"] = _welo_surf(player_a_id) - _welo_surf(player_b_id)
+
+    new_srv_a = _rolling_serve_stats(history, player_a_id, tourney_date, _frame=_frame_a)
+    new_srv_b = _rolling_serve_stats(history, player_b_id, tourney_date, _frame=_frame_b)
+    _srv_medians = {
+        "second_won_pct": POPULATION_SECOND_WON_PCT,
+        "bp_save_pct": POPULATION_BP_SAVE_PCT,
+        "return_pts_pct": POPULATION_RETURN_PTS_PCT,
+    }
+    for _stat, _median in _srv_medians.items():
+        _a = new_srv_a[_stat] if new_srv_a[_stat] is not None else _median
+        _b = new_srv_b[_stat] if new_srv_b[_stat] is not None else _median
+        feats[f"{_stat}_diff"] = _a - _b
 
     feats["age_diff"]        = (player_a_age    or 25.0)  - (player_b_age    or 25.0)
     feats["height_diff"]     = (player_a_height or 185.0) - (player_b_height or 185.0)
