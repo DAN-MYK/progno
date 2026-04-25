@@ -21,7 +21,7 @@ for year in $(seq "$ATP_START" "$END_YEAR"); do
     fi
     url="http://www.tennis-data.co.uk/${year}/${year}.xlsx"
     echo "  fetch $url"
-    curl -sS --fail --retry 3 -o "$dest" "$url" || { echo "  WARN: $url not found"; rm -f "$dest"; }
+    curl -sS -L --fail --retry 3 -o "$dest" "$url" || { echo "  WARN: $url not found"; rm -f "$dest"; }
 done
 
 echo "Downloading WTA XLSX: $WTA_START–$END_YEAR"
@@ -33,7 +33,7 @@ for year in $(seq "$WTA_START" "$END_YEAR"); do
     fi
     url="http://www.tennis-data.co.uk/${year}w/${year}w.xlsx"
     echo "  fetch $url"
-    curl -sS --fail --retry 3 -o "$dest" "$url" || { echo "  WARN: $url not found"; rm -f "$dest"; }
+    curl -sS -L --fail --retry 3 -o "$dest" "$url" || { echo "  WARN: $url not found"; rm -f "$dest"; }
 done
 
 echo "Done. Files in $OUTDIR:"
