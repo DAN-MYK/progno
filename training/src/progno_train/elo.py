@@ -94,7 +94,4 @@ def apply_welo_update(
     sets_l: int,
 ) -> tuple[float, float]:
     """WElo: apply_elo_update with K scaled by margin-of-victory multiplier."""
-    k_welo = k * mov_multiplier(sets_w, sets_l)
-    expected_w = expected_probability(winner_rating, loser_rating)
-    delta = k_welo * (1.0 - expected_w)
-    return winner_rating + delta, loser_rating - delta
+    return apply_elo_update(winner_rating, loser_rating, k=k * mov_multiplier(sets_w, sets_l))

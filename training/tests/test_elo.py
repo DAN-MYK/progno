@@ -106,7 +106,7 @@ def test_context_multiplier_positive(level: str, round_: str, best_of: int) -> N
     assert context_multiplier(level, round_, best_of) > 0.0
 
 
-from progno_train.elo import mov_multiplier, apply_welo_update  # noqa: E402
+from progno_train.elo import apply_welo_update, mov_multiplier  # noqa: E402
 
 
 def test_welo_mov_multiplier_values() -> None:
