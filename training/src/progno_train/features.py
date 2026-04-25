@@ -394,6 +394,9 @@ def compute_match_features(
     feats["welo_overall_diff"] = _elo(player_a_id, "welo_overall") - _elo(player_b_id, "welo_overall")
 
     def _welo_surf(pid: int) -> float:
+        # Mirrors surface_elo() in app/src-tauri/src/elo.rs — keep in sync.
+        # If n_surf < SURFACE_MIN_MATCHES, fall back to overall WElo (not enough surface data).
+        # Blend 50/50 once SURFACE_MIN_MATCHES is reached.
         n_surf = int(_elo(pid, f"matches_played_{surf_key}") or 0)
         welo_surf = _elo(pid, f"welo_{surf_key}")
         welo_ovrl = _elo(pid, "welo_overall")

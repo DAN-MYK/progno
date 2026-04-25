@@ -5,6 +5,8 @@ pub fn expected_probability(rating_a: f64, rating_b: f64) -> f64 {
 }
 
 /// Get composite Elo for a surface, applying weighting if enough history.
+/// Mirrors _welo_surf() in training/src/progno_train/features.py — keep in sync.
+/// Blend threshold: SURFACE_MIN_MATCHES = 20 (defined as Python constant in features.py).
 /// If matches_on_surface >= 20: composite = 0.5 * surface + 0.5 * overall
 /// Otherwise: composite = overall
 pub fn surface_elo(elo_surface: f64, elo_overall: f64, matches_on_surface: u32) -> f64 {
