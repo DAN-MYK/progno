@@ -66,3 +66,17 @@ fmt:
 check:
     cd training && uv run ruff check .
     cd training && uv run pytest -v
+
+# --- Phase 3.5 targets ---
+fetch-odds-data:
+    bash training/scripts/fetch_tennis_data.sh
+
+ingest-odds:
+    cd training && uv run python -m progno_train.cli --tour atp elo
+    cd training && uv run python -m progno_train.cli --tour wta elo
+
+ingest-odds-atp:
+    cd training && uv run python -m progno_train.cli --tour atp elo
+
+ingest-odds-wta:
+    cd training && uv run python -m progno_train.cli --tour wta elo
