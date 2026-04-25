@@ -6,6 +6,12 @@ use crate::kelly;
 #[cfg(not(test))]
 use crate::state::AppState;
 
+// Defaults used when parser cannot extract tournament context from pasted text.
+// See TODO(Phase 5) in predict_matches: these will become user-configurable.
+const DEFAULT_TOURNEY_LEVEL: &str = "A";   // ATP 250
+const DEFAULT_ROUND: &str = "R32";
+const DEFAULT_BEST_OF: u8 = 3;
+
 #[derive(Serialize, Deserialize, Clone)]
 pub struct KellyRequest {
     pub model_prob: f64,
@@ -154,9 +160,9 @@ pub async fn predict_with_ml(
         // Tournament metadata (level, round, best_of) is unavailable from paste input.
         // These defaults (ATP 250, R32, BO3) are used for all matches.
         // TODO(Phase 5): allow users to specify tournament context for better model calibration.
-        tourney_level: "A".to_string(),
-        round_: "R32".to_string(),
-        best_of: 3,
+        tourney_level: DEFAULT_TOURNEY_LEVEL.to_string(),
+        round_: DEFAULT_ROUND.to_string(),
+        best_of: DEFAULT_BEST_OF,
         tourney_date: request.tourney_date.clone(),
     }).collect();
 
