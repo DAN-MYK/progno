@@ -17,9 +17,10 @@ POPULATION_RETURN_PTS_PCT = 0.38
 INITIAL_ELO = 1500.0              # default Elo for a player with no history
 SURFACE_MIN_MATCHES = 20          # min surface matches before surface Elo is trusted (spec §2.3)
 WIN_RATE_RECENT = 50              # rolling window: recent form
-WIN_RATE_SURFACE = 20             # rolling window: surface-specific form
+WIN_RATE_SURFACE = 20             # rolling window: surface-specific form (coincidentally same as SURFACE_MIN_MATCHES; independent concept)
 WIN_RATE_TOP20 = 30               # rolling window: performance vs top-20
 WIN_RATE_ALL_TIME = 9999          # sentinel: "all available history" (no window limit)
+UNKNOWN_RANK_SENTINEL = 9999      # fillna substitute for missing opponent ranks (treated as unranked)
 DEFAULT_PLAYER_AGE = 25.0         # fallback age when absent from match data
 DEFAULT_PLAYER_HEIGHT_CM = 185.0  # fallback height (cm) when absent
 EPS = 1e-7                        # numerical stability guard for division
@@ -146,7 +147,7 @@ def rolling_win_rate(
     if surface:
         df = df[df["surface"] == surface]
     if max_opponent_rank is not None:
-        df = df[df["opponent_rank"].fillna(9999) <= max_opponent_rank]
+        df = df[df["opponent_rank"].fillna(UNKNOWN_RANK_SENTINEL) <= max_opponent_rank]
     df = df.tail(n)
     if len(df) < LOW_HISTORY_THRESHOLD:
         return POPULATION_WIN_RATE, True
@@ -426,6 +427,39 @@ def compute_match_features(
     return feats
 
 
+def _build_feature_row(
+    row: pd.Series,
+    a_prefix: str,
+    b_prefix: str,
+    label: int,
+    frame_a: pd.DataFrame,
+    frame_b: pd.DataFrame,
+    common: dict,
+    h2h_index: dict,
+) -> dict:
+    """Build one feature dict for a match, treating `a_prefix` player as player_a."""
+    feats = compute_match_features(
+        player_a_id=int(row[f"{a_prefix}_id"]),
+        player_b_id=int(row[f"{b_prefix}_id"]),
+        player_a_rank=row.get(f"{a_prefix}_rank"),
+        player_b_rank=row.get(f"{b_prefix}_rank"),
+        player_a_age=row.get(f"{a_prefix}_age"),
+        player_b_age=row.get(f"{b_prefix}_age"),
+        player_a_height=row.get(f"{a_prefix}_ht"),
+        player_b_height=row.get(f"{b_prefix}_ht"),
+        player_a_hand=row.get(f"{a_prefix}_hand"),
+        player_b_hand=row.get(f"{b_prefix}_hand"),
+        _frame_a=frame_a,
+        _frame_b=frame_b,
+        _h2h_index=h2h_index,
+        **common,
+    )
+    feats["label"] = label
+    feats["tourney_date"] = common["tourney_date"]
+    feats["year"] = common["tourney_date"].year
+    return feats
+
+
 def build_all_features(
     history: pd.DataFrame,
     elo_state: dict,
@@ -465,27 +499,9 @@ def build_all_features(
             tourney_date=date,
         )
 
-        fp = compute_match_features(
-            player_a_id=pid_w, player_b_id=pid_l,
-            player_a_rank=row.get("winner_rank"), player_b_rank=row.get("loser_rank"),
-            player_a_age=row.get("winner_age"),   player_b_age=row.get("loser_age"),
-            player_a_height=row.get("winner_ht"), player_b_height=row.get("loser_ht"),
-            player_a_hand=row.get("winner_hand"), player_b_hand=row.get("loser_hand"),
-            _frame_a=fa, _frame_b=fb, _h2h_index=h2h_index, **common,
-        )
-        fp["label"] = 1; fp["tourney_date"] = date; fp["year"] = date.year
-        rows.append(fp)
-
-        fn = compute_match_features(
-            player_a_id=pid_l, player_b_id=pid_w,
-            player_a_rank=row.get("loser_rank"),  player_b_rank=row.get("winner_rank"),
-            player_a_age=row.get("loser_age"),    player_b_age=row.get("winner_age"),
-            player_a_height=row.get("loser_ht"),  player_b_height=row.get("winner_ht"),
-            player_a_hand=row.get("loser_hand"),  player_b_hand=row.get("winner_hand"),
-            _frame_a=fb, _frame_b=fa, _h2h_index=h2h_index, **common,
-        )
-        fn["label"] = 0; fn["tourney_date"] = date; fn["year"] = date.year
-        rows.append(fn)
+        fp = _build_feature_row(row, "winner", "loser", 1, fa, fb, common, h2h_index)
+        fn = _build_feature_row(row, "loser", "winner", 0, fb, fa, common, h2h_index)
+        rows.extend([fp, fn])
 
         if len(rows) % 20000 == 0:
             log.info("build_all_features: %d rows processed...", len(rows))
