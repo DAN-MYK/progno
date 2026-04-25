@@ -9,6 +9,7 @@ dependencies = [
     "numpy>=1.26",
     "catboost>=1.2",
     "scikit-learn>=1.4",
+    "openpyxl>=3.1",
 ]
 
 [project.optional-dependencies]

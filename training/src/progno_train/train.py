@@ -9,8 +9,8 @@ import pandas as pd
 from catboost import CatBoostClassifier, Pool
 from sklearn.linear_model import LogisticRegression
 
-BURN_IN_YEAR_ATP = 2004
-BURN_IN_YEAR_WTA = 2011
+BURN_IN_YEAR_ATP = 1991  # serve stats start; CatBoost handles NaN naturally
+BURN_IN_YEAR_WTA = 2007  # WTA serve stats become meaningful
 CAL_YEAR = 2022
 TEST_START_YEAR = 2023
 

@@ -4,10 +4,15 @@
 )]
 
 mod artifacts;
+mod bets;
 mod commands;
+mod config;
 mod elo;
 mod kelly;
+mod llm;
 mod parser;
+mod rapidapi;
+mod schedule;
 mod sidecar;
 mod state;
 
@@ -42,6 +47,17 @@ fn main() {
             commands::get_data_as_of_cmd,
             commands::calculate_kelly,
             commands::predict_with_ml,
+            commands::parse_with_llm,
+            schedule::fetch_and_predict,
+            bets::add_bet,
+            bets::get_bets,
+            bets::update_bet_result,
+            bets::delete_bet,
+            llm::check_player_news,
+            rapidapi::fetch_rapidapi_schedule,
+            rapidapi::fetch_rankings,
+            rapidapi::fetch_schedule_auto,
+            config::load_api_keys,
         ])
         .run(tauri::generate_context!())
         .map_err(|e| eprintln!("Failed to run Tauri: {}", e))

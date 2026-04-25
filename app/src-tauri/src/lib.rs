@@ -1,7 +1,11 @@
 pub mod artifacts;
+pub mod bets;
 pub mod commands;
 pub mod elo;
 pub mod kelly;
+pub mod llm;
 pub mod parser;
+pub mod rapidapi;
+pub mod schedule;
 pub mod sidecar;
 pub mod state;

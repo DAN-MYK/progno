@@ -1,0 +1,50 @@
+{
+  "train_years": [
+    2008,
+    2022
+  ],
+  "test_year": 2023,
+  "metrics": {
+    "logloss_catboost": 0.5963434460732594,
+    "ece_catboost": 0.005175209030981272,
+    "n_test": 150056,
+    "platt_a": 1.08236346940627,
+    "platt_b": -0.00015018510094881682,
+    "cal_year": 2022,
+    "test_year": 2023
+  },
+  "feature_names": [
+    "win_rate_diff",
+    "win_rate_surface_diff",
+    "win_rate_12m_diff",
+    "win_rate_top20_diff",
+    "low_history_flag",
+    "days_since_last_diff",
+    "sets_last_14d_diff",
+    "matches_last_30d_diff",
+    "surface_switch_a",
+    "surface_switch_b",
+    "first_serve_in_pct_diff",
+    "first_serve_won_pct_diff",
+    "ace_rate_diff",
+    "df_rate_diff",
+    "h2h_score",
+    "h2h_sample_size",
+    "elo_overall_diff",
+    "elo_surface_diff",
+    "welo_overall_diff",
+    "welo_surface_diff",
+    "second_won_pct_diff",
+    "bp_save_pct_diff",
+    "return_pts_pct_diff",
+    "age_diff",
+    "height_diff",
+    "lefty_vs_righty",
+    "surface",
+    "tourney_level",
+    "round",
+    "best_of_5"
+  ],
+  "git_sha": "f59ca0f0cd54e1f1c5df5492d53d66d11a580219",
+  "generated_at": "2026-04-25T20:56:26.130504"
+}

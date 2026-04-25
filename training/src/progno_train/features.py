@@ -313,6 +313,21 @@ def h2h_score(
     return float(shrunk), int(n)
 
 
+def _build_pid_to_elo_key(history: pd.DataFrame) -> dict[int, str]:
+    """Build pid→elo_state_key mapping (last word of name, lowercase) matching write_elo_state."""
+    if "winner_name" not in history.columns or "loser_name" not in history.columns:
+        return {}
+    names_w = history[["winner_id", "winner_name"]].rename(columns={"winner_id": "id", "winner_name": "name"})
+    names_l = history[["loser_id", "loser_name"]].rename(columns={"loser_id": "id", "loser_name": "name"})
+    all_names = pd.concat([names_w, names_l]).drop_duplicates("id")
+    result: dict[int, str] = {}
+    for row in all_names.itertuples():
+        parts = str(row.name).split()
+        if parts:
+            result[int(row.id)] = parts[-1].lower()
+    return result
+
+
 def compute_match_features(
     history: pd.DataFrame,
     elo_state: dict,
@@ -335,6 +350,7 @@ def compute_match_features(
     _frame_a: pd.DataFrame | None = None,
     _frame_b: pd.DataFrame | None = None,
     _h2h_index: dict | None = None,
+    _pid_to_elo_key: dict[int, str] | None = None,
 ) -> dict[str, Any]:
     """Compute all pre-match features. Time-gated at tourney_date."""
     feats: dict[str, Any] = {}
@@ -372,8 +388,11 @@ def compute_match_features(
     feats["h2h_score"]       = h2h
     feats["h2h_sample_size"] = h2h_n
 
+    _elo_players = elo_state.get("players", {})
+
     def _elo(pid: int, field: str) -> float:
-        return float(elo_state.get("players", {}).get(str(pid), {}).get(field, 1500))
+        key = _pid_to_elo_key.get(pid, str(pid)) if _pid_to_elo_key else str(pid)
+        return float(_elo_players.get(key, {}).get(field, 1500))
 
     surf_key = surface.lower() if isinstance(surface, str) else "hard"
     feats["elo_overall_diff"] = _elo(player_a_id, "elo_overall") - _elo(player_b_id, "elo_overall")
@@ -429,6 +448,7 @@ def build_all_features(
 
     player_index = _build_player_index(history)
     h2h_index = _build_h2h_index(history)
+    pid_to_elo_key = _build_pid_to_elo_key(history)
     _empty: pd.DataFrame = pd.DataFrame()
     rows = []
 
@@ -460,7 +480,8 @@ def build_all_features(
             player_a_age=row.get("winner_age"),   player_b_age=row.get("loser_age"),
             player_a_height=row.get("winner_ht"), player_b_height=row.get("loser_ht"),
             player_a_hand=row.get("winner_hand"), player_b_hand=row.get("loser_hand"),
-            _frame_a=fa, _frame_b=fb, _h2h_index=h2h_index, **common,
+            _frame_a=fa, _frame_b=fb, _h2h_index=h2h_index,
+            _pid_to_elo_key=pid_to_elo_key, **common,
         )
         fp["label"] = 1; fp["tourney_date"] = date; fp["year"] = date.year
         rows.append(fp)
@@ -471,7 +492,8 @@ def build_all_features(
             player_a_age=row.get("loser_age"),    player_b_age=row.get("winner_age"),
             player_a_height=row.get("loser_ht"),  player_b_height=row.get("winner_ht"),
             player_a_hand=row.get("loser_hand"),  player_b_hand=row.get("winner_hand"),
-            _frame_a=fb, _frame_b=fa, _h2h_index=h2h_index, **common,
+            _frame_a=fb, _frame_b=fa, _h2h_index=h2h_index,
+            _pid_to_elo_key=pid_to_elo_key, **common,
         )
         fn["label"] = 0; fn["tourney_date"] = date; fn["year"] = date.year
         rows.append(fn)

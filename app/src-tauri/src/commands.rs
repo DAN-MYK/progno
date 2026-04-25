@@ -175,7 +175,45 @@ pub async fn predict_with_ml(
     }
 }
 
-fn normalize_player_id(name: &str) -> String {
+#[cfg(not(test))]
+#[tauri::command]
+pub async fn parse_with_llm(
+    text: String,
+    tour: String,
+    provider: String,
+    api_key: String,
+    app_state: tauri::State<'_, AppState>,
+) -> Result<PredictResponse, String> {
+    let matches = crate::llm::parse_with_llm(&text, &provider, &api_key)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    if matches.is_empty() {
+        return Ok(PredictResponse {
+            predictions: vec![],
+            data_as_of: "unknown".to_string(),
+            error: Some("AI could not extract any matches from this text.".to_string()),
+        });
+    }
+
+    // Build synthetic text from parsed matches and run through existing predict_text
+    let synthetic: String = matches
+        .iter()
+        .map(|m| format!("{} vs {} - {}", m.player_a, m.player_b, m.surface))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    let elo = match tour.as_str() {
+        "wta" => app_state.elo_wta.lock().unwrap(),
+        _ => app_state.elo_atp.lock().unwrap(),
+    };
+    match &*elo {
+        None => Err(format!("Elo data for {} not loaded", tour.to_uppercase())),
+        Some(state) => Ok(predict_text(&synthetic, state)),
+    }
+}
+
+pub(crate) fn normalize_player_id(name: &str) -> String {
     name.replace(' ', "_").to_lowercase()
 }
 

@@ -5,6 +5,17 @@ default:
 update-data:
     bash training/scripts/fetch_sackmann.sh
     bash training/scripts/fetch_sackmann_wta.sh
+    bash training/scripts/fetch_tennis_data.sh
+
+fetch-new-data:
+    bash training/scripts/fetch_sackmann.sh
+    bash training/scripts/fetch_sackmann_wta.sh
+    bash training/scripts/fetch_tennis_data.sh
+
+# Full retrain both tours from scratch (ingest → elo → features → train → validate)
+retrain-all:
+    just ingest && just elo && just features && just train && just validate
+    just ingest-wta && just elo-wta && just features-wta && just train-wta && just validate-wta
 
 ingest:
     cd training && uv run python -m progno_train.cli --tour atp ingest

@@ -24,6 +24,8 @@ _platt: dict[str, tuple[float, float]] = {"atp": (1.0, 0.0), "wta": (1.0, 0.0)}
 _cat_idx: dict[str, list[int]] = {"atp": [], "wta": []}
 _history: dict[str, pd.DataFrame | None] = {"atp": None, "wta": None}
 _elo_state: dict[str, dict] = {"atp": {}, "wta": {}}
+# last_name -> integer player_id; keyed the same way Rust normalises names (last word, lowercase)
+_name_to_pid: dict[str, dict[str, int]] = {"atp": {}, "wta": {}}
 _model_card: dict[str, dict] = {"atp": {}, "wta": {}}
 _port: int = 0
 
@@ -52,7 +54,30 @@ def _load_tour(artifacts_root: Path, tour: str) -> None:
     _platt[tour] = (cal["a"], cal["b"])
 
     _history[tour] = pd.read_parquet(tour_dir / "match_history.parquet")
-    _elo_state[tour] = json.loads((tour_dir / "elo_state.json").read_text())
+    elo_raw = json.loads((tour_dir / "elo_state.json").read_text())
+
+    # Build name->pid lookup and remap elo_state from last-name keys to str(int_pid) keys.
+    # elo_state.json uses last-name keys (for Rust lookup); features.py does str(int_pid) lookup.
+    players_path = tour_dir / "players.parquet"
+    if players_path.exists():
+        players_df = pd.read_parquet(players_path)
+        pid_to_last: dict[int, str] = {}
+        for row in players_df.itertuples():
+            parts = str(row.name).split()
+            if parts:
+                pid_to_last[int(row.player_id)] = parts[-1].lower()
+        _name_to_pid[tour] = {last: pid for pid, last in pid_to_last.items()}
+        players_by_name = elo_raw.get("players", {})
+        _elo_state[tour] = {
+            **elo_raw,
+            "players": {
+                str(pid): players_by_name[last]
+                for pid, last in pid_to_last.items()
+                if last in players_by_name
+            },
+        }
+    else:
+        _elo_state[tour] = elo_raw
 
     card_path = tour_dir / "model_card.json"
     _model_card[tour] = json.loads(card_path.read_text()) if card_path.exists() else {}
@@ -126,10 +151,9 @@ async def predict(req: PredictRequest) -> PredictResponse:
         if _models.get(tour) is None:
             raise HTTPException(503, f"Model not loaded for tour: {tour}")
 
-        try:
-            pid_a, pid_b = int(m.player_a_id), int(m.player_b_id)
-        except ValueError:
-            raise HTTPException(422, f"player IDs must be integers: {m.player_a_id}, {m.player_b_id}")
+        # Rust sends last-name strings (e.g. "alcaraz"); map to integer player IDs.
+        pid_a = _name_to_pid[tour].get(m.player_a_id, 0)
+        pid_b = _name_to_pid[tour].get(m.player_b_id, 0)
 
         tourney_date = pd.Timestamp(m.tourney_date)
         feats = feat_module.compute_match_features(

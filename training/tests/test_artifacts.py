@@ -4,10 +4,13 @@ import json
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 from progno_train.artifacts import (
+    write_calibration,
     write_elo_state,
     write_match_history,
+    write_model_card,
     write_players,
 )
 from progno_train.rollup import PlayerElo
@@ -104,6 +107,53 @@ def test_write_players_deduplicates_across_matches(tmp_path: Path) -> None:
     write_players(matches, out)
     df = pd.read_parquet(out)
     assert len(df) == 2
+
+
+def test_write_calibration_roundtrip(tmp_path: Path) -> None:
+    out = tmp_path / "calibration.json"
+    write_calibration(1.23, -0.45, out)
+    content = json.loads(out.read_text())
+    assert content["a"] == pytest.approx(1.23)
+    assert content["b"] == pytest.approx(-0.45)
+
+
+def test_write_calibration_creates_parent_dirs(tmp_path: Path) -> None:
+    out = tmp_path / "nested" / "dir" / "calibration.json"
+    write_calibration(0.0, 0.0, out)
+    assert out.exists()
+
+
+def test_write_model_card_structure(tmp_path: Path) -> None:
+    out = tmp_path / "model_card.json"
+    write_model_card(
+        train_years=(2005, 2022),
+        test_year=2023,
+        metrics={"log_loss": 0.58, "ece": 0.03},
+        feature_names=["elo_overall_diff", "win_rate_diff"],
+        git_sha="abc123",
+        out_path=out,
+    )
+    card = json.loads(out.read_text())
+    assert card["train_years"] == [2005, 2022]
+    assert card["test_year"] == 2023
+    assert card["metrics"]["log_loss"] == pytest.approx(0.58)
+    assert card["feature_names"] == ["elo_overall_diff", "win_rate_diff"]
+    assert card["git_sha"] == "abc123"
+    assert "generated_at" in card
+
+
+def test_write_model_card_features_roundtrip(tmp_path: Path) -> None:
+    features = [f"feat_{i}" for i in range(20)]
+    write_model_card(
+        train_years=(2010, 2022),
+        test_year=2023,
+        metrics={},
+        feature_names=features,
+        git_sha="deadbeef",
+        out_path=tmp_path / "card.json",
+    )
+    card = json.loads((tmp_path / "card.json").read_text())
+    assert card["feature_names"] == features
 
 
 def test_write_match_history_projects_expected_columns(tmp_path: Path) -> None:

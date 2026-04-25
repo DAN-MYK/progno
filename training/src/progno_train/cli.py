@@ -51,6 +51,25 @@ def run_ingest(paths: Paths, tour: str) -> int:
         return 2
     log.info("ingesting %d CSV files for tour=%s", len(csvs), tour)
     df = ingest_sackmann_csv(csvs)
+
+    # Merge supplemental tennis-data.co.uk XLSX if available
+    xlsx_dir = paths.data_raw / "tennis_data_xlsx"
+    if xlsx_dir.exists():
+        from progno_train.ingest_xlsx import ingest_tennis_data_xlsx_dir
+        players_path = paths.players
+        players = pd.read_parquet(players_path) if players_path.exists() else None
+        xl_df = ingest_tennis_data_xlsx_dir(xlsx_dir, players=players, tour=tour)
+        if not xl_df.empty:
+            max_sackmann = df["tourney_date"].max()
+            xl_new = xl_df[xl_df["tourney_date"] > max_sackmann]
+            if not xl_new.empty:
+                log.info(
+                    "merging %d supplemental rows from tennis-data.co.uk (after %s)",
+                    len(xl_new), max_sackmann.date(),
+                )
+                df = pd.concat([df, xl_new], ignore_index=True)
+                df = df.sort_values(["tourney_date", "match_num"]).reset_index(drop=True)
+
     out = paths.matches_clean
     out.parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(out, index=False)
@@ -98,6 +117,25 @@ def run_features(paths: Paths, tour: str = "atp") -> int:
     log.info("loading match history for feature engineering...")
     history = pd.read_parquet(paths.match_history)
     elo_state = json.loads(paths.elo_state.read_text())
+
+    # Remap elo_state from last-name keys to str(int_pid) keys so _elo(int_pid, field) works.
+    # elo_state.json is keyed by last_name (for Rust lookup); features.py does str(int_pid) lookup.
+    if paths.players.exists():
+        _players_df = pd.read_parquet(paths.players)
+        _pid_to_last: dict[int, str] = {}
+        for _row in _players_df.itertuples():
+            _parts = str(_row.name).split()
+            if _parts:
+                _pid_to_last[int(_row.player_id)] = _parts[-1].lower()
+        _by_name = elo_state.get("players", {})
+        elo_state = {
+            **elo_state,
+            "players": {
+                str(pid): _by_name[last]
+                for pid, last in _pid_to_last.items()
+                if last in _by_name
+            },
+        }
 
     log.info("building features for %d matches (min_year=%d)...", len(history), min_year)
     featurized = build_all_features(history, elo_state, min_year=min_year)
