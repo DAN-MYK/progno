@@ -4,10 +4,15 @@ from __future__ import annotations
 
 import numpy as np
 
+# Thresholds from spec §4.3, §6.4 — non-negotiable acceptance criteria
+ECE_THRESHOLD = 0.03       # max calibration error; 0.03 = 3% avg miscalibration
+ROI_THRESHOLD = -0.01      # min ROI; -1% buffer below spec target of >= 0%
+KELLY_FRACTION = 0.25      # fractional Kelly multiplier (spec: max 0.25 × full Kelly)
+EPS = 1e-7                 # numerical stability guard
+
 
 def compute_log_loss(y_true: np.ndarray, y_pred: np.ndarray) -> float:
-    eps = 1e-7
-    p = np.clip(y_pred, eps, 1 - eps)
+    p = np.clip(y_pred, EPS, 1 - EPS)
     return float(-np.mean(y_true * np.log(p) + (1 - y_true) * np.log(1 - p)))
 
 
@@ -27,7 +32,7 @@ def compute_roi(
     y_true: np.ndarray,
     y_pred: np.ndarray,
     odds: np.ndarray | None,
-    kelly_frac: float = 0.25,
+    kelly_frac: float = KELLY_FRACTION,
 ) -> float | None:
     """Compute ROI from predictions and closing odds using fractional Kelly stakes.
 
@@ -65,8 +70,8 @@ def acceptance_gate(
     ece: float,
     *,
     roi: float | None = None,
-    ece_threshold: float = 0.03,
-    roi_threshold: float = -0.01,
+    ece_threshold: float = ECE_THRESHOLD,
+    roi_threshold: float = ROI_THRESHOLD,
 ) -> None:
     """Raise ValueError if model fails acceptance criteria (non-negotiable invariants).
 
