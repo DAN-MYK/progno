@@ -20,8 +20,8 @@ Claude Code writes all code. Before touching any file:
 
 ## Current status
 
-- **Completed**: Phase 1a, 1b, 2 (Kelly), 3 (CatBoost + Platt calibration + sidecar), 4 (WTA dual model)
-- **Active on master**: maintenance + Phase 3.5 (odds ingest from tennis-data.co.uk for ROI gate)
+- **Completed**: Phase 1a, 1b, 2 (Kelly), 3 (CatBoost + Platt calibration + sidecar), 4 (WTA dual model), 3.5 (odds ingest + ROI gate)
+- **Active on master**: maintenance
 - **Phase 5 in progress on `phase-5` branch**: schedule scraper, bet history, LLM news/injury checking — not merged until §7.3 gate documentation is complete
 - **Implementation plans**: `docs/superpowers/plans/` (check for the latest phase plan)
 
