@@ -504,6 +504,9 @@ def build_all_features(
 
         fp = _build_feature_row(row, "winner", "loser", 1, fa, fb, common, h2h_index)
         fn = _build_feature_row(row, "loser", "winner", 0, fb, fa, common, h2h_index)
+        # odds_a_winner: PSW when A=winner, PSL when A=loser (closing odds never used as feature)
+        fp["odds_a_winner"] = row.get("PSW")
+        fn["odds_a_winner"] = row.get("PSL")
         rows.extend([fp, fn])
 
         if len(rows) % 20000 == 0:

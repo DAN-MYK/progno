@@ -406,3 +406,33 @@ def test_new_features_no_future_leakage() -> None:
     assert stats["second_won_pct"] is not None
     # All data in frame_before is strictly before cutoff
     assert all(frame_before["tourney_date"] < cutoff)
+
+
+def test_build_all_features_has_odds_a_winner_column():
+    """odds_a_winner column must be present in output (may be NaN if no odds data)."""
+    hist = make_history(20)
+    elo_state = {"players": {}}
+    df = build_all_features(hist, elo_state)
+    assert "odds_a_winner" in df.columns
+
+
+def test_build_all_features_odds_winner_row_gets_psw():
+    """For the winner-as-A row, odds_a_winner = PSW from match history."""
+    hist = make_history(20)
+    hist["PSW"] = 1.80
+    hist["PSL"] = 2.10
+    elo_state = {"players": {}}
+    df = build_all_features(hist, elo_state)
+    label1_rows = df[df["label"] == 1]
+    assert (label1_rows["odds_a_winner"].dropna() == 1.80).all()
+
+
+def test_build_all_features_odds_loser_row_gets_psl():
+    """For the loser-as-A row, odds_a_winner = PSL from match history."""
+    hist = make_history(20)
+    hist["PSW"] = 1.80
+    hist["PSL"] = 2.10
+    elo_state = {"players": {}}
+    df = build_all_features(hist, elo_state)
+    label0_rows = df[df["label"] == 0]
+    assert (label0_rows["odds_a_winner"].dropna() == 2.10).all()

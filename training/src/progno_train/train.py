@@ -29,9 +29,11 @@ CATBOOST_PARAMS = {
 }
 
 
+_METADATA_COLS = {"label", "tourney_date", "year", "odds_a_winner"}
+
+
 def get_feature_cols(df: pd.DataFrame) -> list[str]:
-    exclude = {"label", "tourney_date", "year"}
-    return [c for c in df.columns if c not in exclude]
+    return [c for c in df.columns if c not in _METADATA_COLS]
 
 
 def walk_forward_splits(

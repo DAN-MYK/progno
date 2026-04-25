@@ -107,6 +107,21 @@ def test_get_feature_cols_excludes_metadata():
     assert "elo_overall_diff" in cols
 
 
+def test_get_feature_cols_excludes_odds_a_winner():
+    df = make_feature_df(10)
+    df["odds_a_winner"] = 1.85
+    cols = get_feature_cols(df)
+    assert "odds_a_winner" not in cols
+
+
+def test_get_feature_cols_excludes_all_metadata():
+    df = make_feature_df(10)
+    df["odds_a_winner"] = 1.85
+    cols = get_feature_cols(df)
+    for meta in ["label", "year", "tourney_date", "odds_a_winner"]:
+        assert meta not in cols, f"{meta} should be excluded"
+
+
 def test_wta_full_training_pipeline():
     """E2e: WTA synthetic data → _train_catboost → fit_platt → apply_platt → metrics.
 
