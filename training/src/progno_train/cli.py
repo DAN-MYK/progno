@@ -29,6 +29,14 @@ def _setup_logging() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
 
+def _require(path: Path, hint: str) -> int | None:
+    """Return 2 (error exit code) if path does not exist, else None."""
+    if not path.exists():
+        log.error("%s not found at %s", hint, path)
+        return 2
+    return None
+
+
 def _git_sha() -> str:
     try:
         return subprocess.check_output(["git", "rev-parse", "HEAD"]).decode().strip()
@@ -59,9 +67,8 @@ def run_ingest(paths: Paths, tour: str) -> int:
 
 
 def run_elo(paths: Paths) -> int:
-    if not paths.matches_clean.exists():
-        log.error("no staging parquet at %s; run ingest first", paths.matches_clean)
-        return 2
+    if (rc := _require(paths.matches_clean, "staging parquet (run ingest first)")) is not None:
+        return rc
     matches = pd.read_parquet(paths.matches_clean)
     log.info("rolling up %d matches", len(matches))
     state = rollup_elo(matches)
@@ -89,9 +96,8 @@ def run_features(paths: Paths, tour: str = "atp") -> int:
     from progno_train.features import build_all_features
     from progno_train.train import BURN_IN_YEAR_ATP, BURN_IN_YEAR_WTA
 
-    if not paths.match_history.exists():
-        log.error("no match_history at %s; run elo first", paths.match_history)
-        return 2
+    if (rc := _require(paths.match_history, "match_history (run elo first)")) is not None:
+        return rc
 
     min_year = BURN_IN_YEAR_ATP if tour == "atp" else BURN_IN_YEAR_WTA
 
@@ -110,9 +116,8 @@ def run_features(paths: Paths, tour: str = "atp") -> int:
 def run_train(paths: Paths, tour: str) -> int:
     from progno_train.train import run_walk_forward, BURN_IN_YEAR_ATP, BURN_IN_YEAR_WTA
 
-    if not paths.featurized.exists():
-        log.error("no featurized parquet at %s; run features first", paths.featurized)
-        return 2
+    if (rc := _require(paths.featurized, "featurized parquet (run features first)")) is not None:
+        return rc
 
     burn_in = BURN_IN_YEAR_WTA if tour == "wta" else BURN_IN_YEAR_ATP
     val_start = 2019 if tour == "wta" else 2016
