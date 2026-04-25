@@ -1,8 +1,26 @@
 <script lang="ts">
+  import { onMount } from 'svelte'
+  import { load } from '@tauri-apps/plugin-store'
   import MatchInput from './lib/components/MatchInput.svelte'
   import MatchCard from './lib/components/MatchCard.svelte'
   import Footer from './lib/components/Footer.svelte'
   import { predictions, error, bankroll, kelly_fraction, selectedTour } from './lib/stores'
+
+  onMount(async () => {
+    const store = await load('settings.json', { autoSave: true })
+
+    const savedBankroll = await store.get<number>('bankroll')
+    const savedKelly = await store.get<number>('kelly_fraction')
+    const savedTour = await store.get<'atp' | 'wta'>('tour')
+
+    if (savedBankroll != null) bankroll.set(savedBankroll)
+    if (savedKelly != null) kelly_fraction.set(savedKelly)
+    if (savedTour != null) selectedTour.set(savedTour)
+
+    bankroll.subscribe(v => store.set('bankroll', v))
+    kelly_fraction.subscribe(v => store.set('kelly_fraction', v))
+    selectedTour.subscribe(v => store.set('tour', v))
+  })
 </script>
 
 <div class="min-h-screen flex flex-col bg-white">

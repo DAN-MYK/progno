@@ -233,7 +233,26 @@ def run_retrain(paths: Paths, tour: str, version: str) -> int:
 
 
 def run_publish(paths: Paths, version: str) -> int:
-    log.warning("publish: stub — copy artifacts/%s to app-data in Phase 5", paths.artifacts.name)
+    import shutil
+    src = paths.artifacts
+    if not src.exists():
+        log.error("no artifacts at %s — run retrain first", src)
+        return 2
+
+    versioned = src.parent / f"v{version}"
+    versioned.mkdir(parents=True, exist_ok=True)
+    for f in src.iterdir():
+        if f.is_file():
+            shutil.copy2(f, versioned / f.name)
+
+    current = src.parent / "current"
+    if current.is_symlink() or current.exists():
+        current.unlink()
+    current.symlink_to(versioned.name)
+
+    log.info("published %s → %s", src.name, versioned)
+    log.info("current symlink: %s → %s", current, versioned.name)
+    log.info("copy '%s/' to app artifacts/%s/ to activate", versioned, src.name)
     return 0
 
 

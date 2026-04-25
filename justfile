@@ -14,6 +14,12 @@ elo:
 
 publish version:
     cd training && uv run python -m progno_train.cli --tour atp publish {{version}}
+    cd training && uv run python -m progno_train.cli --tour wta publish {{version}}
+
+rollback version:
+    ln -sfn v{{version}} training/artifacts/atp/current
+    ln -sfn v{{version}} training/artifacts/wta/current
+    @echo "rolled back to v{{version}}"
 
 # --- Phase 3 targets (ATP) ---
 features:

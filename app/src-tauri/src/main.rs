@@ -21,6 +21,7 @@ fn main() {
     tauri::Builder::default()
         .manage(AppState::default())
         .manage(std::sync::Mutex::new(sidecar::SidecarState::default()))
+        .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_shell::init())
         .setup(|app| {
             if let Ok(elo) = artifacts::load_elo_state_for_tour("atp") {
