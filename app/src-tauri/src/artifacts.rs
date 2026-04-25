@@ -15,35 +15,29 @@ pub fn load_elo_state(path: &str) -> Result<Value, String> {
 
 /// Get Elo rating for a player on a specific surface.
 pub fn get_player_elo(state: &Value, player_id: &str, surface: &str) -> Result<f64, String> {
-    state
-        .get("players")
-        .and_then(|p| p.get(player_id))
-        .and_then(|player| {
-            let field = match surface.to_lowercase().as_str() {
-                "hard" => "elo_hard",
-                "clay" => "elo_clay",
-                "grass" => "elo_grass",
-                _ => "elo_overall",
-            };
-            player.get(field).and_then(|v| v.as_f64())
-        })
+    let field = match surface.to_lowercase().as_str() {
+        "hard" => "elo_hard",
+        "clay" => "elo_clay",
+        "grass" => "elo_grass",
+        _ => "elo_overall",
+    };
+    get_player_node(state, player_id)
+        .and_then(|p| p.get(field))
+        .and_then(|v| v.as_f64())
         .ok_or_else(|| format!("Player {} has no {} Elo", player_id, surface))
 }
 
 /// Get number of matches played on a specific surface.
 pub fn get_player_surface_matches(state: &Value, player_id: &str, surface: &str) -> Result<u32, String> {
-    state
-        .get("players")
-        .and_then(|p| p.get(player_id))
-        .and_then(|player| {
-            let field = match surface.to_lowercase().as_str() {
-                "hard" => "matches_played_hard",
-                "clay" => "matches_played_clay",
-                "grass" => "matches_played_grass",
-                _ => "matches_played",
-            };
-            player.get(field).and_then(|v| v.as_u64())
-        })
+    let field = match surface.to_lowercase().as_str() {
+        "hard" => "matches_played_hard",
+        "clay" => "matches_played_clay",
+        "grass" => "matches_played_grass",
+        _ => "matches_played",
+    };
+    get_player_node(state, player_id)
+        .and_then(|p| p.get(field))
+        .and_then(|v| v.as_u64())
         .ok_or_else(|| format!("Player {} has no surface match count", player_id))
         .map(|v| v as u32)
 }
@@ -55,6 +49,11 @@ pub fn get_data_as_of(state: &Value) -> String {
         .and_then(|v| v.as_str())
         .unwrap_or("unknown")
         .to_string()
+}
+
+/// Helper: Get player node from state by player_id, flattening nested JSON chain.
+fn get_player_node<'a>(state: &'a Value, player_id: &str) -> Option<&'a Value> {
+    state.get("players")?.get(player_id)
 }
 
 /// Load elo_state.json for a specific tour from artifacts/{tour}/elo_state.json
