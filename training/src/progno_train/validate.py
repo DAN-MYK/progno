@@ -31,28 +31,27 @@ def compute_roi(
 ) -> float | None:
     """Compute ROI from predictions and closing odds using fractional Kelly stakes.
 
-    Args:
-        y_true: binary labels (1 if player_a won)
-        y_pred: predicted probabilities for player_a winning
-        odds: Pinnacle decimal odds for player_a winning (or None if unavailable)
-        kelly_frac: Kelly fraction (default 0.25 = "fractional Kelly")
-
-    Returns:
-        ROI as return per unit bet (e.g. 0.05 = +5%), or None if odds unavailable.
+    Returns yield (return per unit staked) on player_a side, or None if no valid odds.
+    NaN and odds <= 1.0 are masked out rather than propagated.
     """
-    if odds is None or len(odds) == 0:
+    if odds is None:
         return None
 
     odds = np.asarray(odds, dtype=np.float64)
     y_true = np.asarray(y_true, dtype=np.int32)
     y_pred = np.asarray(y_pred, dtype=np.float64)
 
-    implied_p = 1.0 / odds
-    full_kelly = (y_pred * odds - 1.0) / (odds - 1.0)
+    valid = np.isfinite(odds) & (odds > 1.0)
+    if not valid.any():
+        return None
+
+    o, p, y = odds[valid], y_pred[valid], y_true[valid]
+
+    full_kelly = (p * o - 1.0) / (o - 1.0)
     stakes = np.maximum(0.0, kelly_frac * full_kelly)
 
-    pnl = np.where(y_true == 1, stakes * (odds - 1.0), -stakes)
-    total_stake = np.sum(stakes)
+    pnl = np.where(y == 1, stakes * (o - 1.0), -stakes)
+    total_stake = float(np.sum(stakes))
 
     if total_stake == 0.0:
         return 0.0
@@ -64,6 +63,7 @@ def acceptance_gate(
     model_logloss: float,
     baseline_logloss: float,
     ece: float,
+    *,
     roi: float | None = None,
     ece_threshold: float = 0.03,
     roi_threshold: float = -0.01,

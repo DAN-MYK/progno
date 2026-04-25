@@ -134,6 +134,19 @@ def run_train(paths: Paths, tour: str) -> int:
     return 0
 
 
+def _extract_winner_odds(test_df: pd.DataFrame) -> tuple[object, str | None]:
+    """Find first available 'odds for winner' column from tennis-data.co.uk.
+
+    Returns (odds_array, column_name) or (None, None) if none found.
+    Note: these columns land in match_history only after ingest_xlsx propagates them (Phase 3.5).
+    """
+    candidates = ["odds_a_winner", "PSW", "B365W", "MaxW", "AvgW"]
+    for col in candidates:
+        if col in test_df.columns and test_df[col].notna().any():
+            return test_df[col].to_numpy(), col
+    return None, None
+
+
 def run_validate(paths: Paths) -> int:
     from catboost import CatBoostClassifier, Pool
     from progno_train.train import apply_platt, get_feature_cols, TEST_START_YEAR
@@ -163,13 +176,17 @@ def run_validate(paths: Paths) -> int:
     baseline_ll = compute_log_loss(y, elo_probs)
     ece = compute_ece(y, cal_probs)
 
-    # Compute ROI from Pinnacle closing odds (if available)
+    odds_arr, odds_col = _extract_winner_odds(test_df)
     roi = None
-    if "pinnacle_odds" in test_df.columns and test_df["pinnacle_odds"].notna().any():
-        roi = compute_roi(y, cal_probs, test_df["pinnacle_odds"].values)
-        log.info("ROI (0.25× Kelly vs Pinnacle closing): %.4f", roi or 0.0)
+    if odds_arr is not None:
+        roi = compute_roi(y, cal_probs, odds_arr)
+        log.info("ROI (0.25× Kelly via %s): %.4f", odds_col, roi or 0.0)
     else:
-        log.warning("ROI gate SKIPPED: no closing odds in dataset (expected from tennis-data.co.uk join)")
+        log.warning(
+            "ROI gate SKIPPED: no odds column found in test data "
+            "(expected one of: odds_a_winner, PSW, B365W, MaxW, AvgW). "
+            "Odds ingest from tennis-data.co.uk is Phase 3.5 work."
+        )
 
     log.info("model log-loss: %.4f | Elo baseline: %.4f | ECE: %.4f", model_ll, baseline_ll, ece)
     try:

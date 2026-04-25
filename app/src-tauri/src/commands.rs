@@ -166,7 +166,14 @@ pub async fn predict_with_ml(
                 .zip(ml_resp.predictions.into_iter())
                 .map(|(mut elo_pred, ml_pred)| {
                     elo_pred.ml_prob_a_wins = Some(ml_pred.prob_a_wins);
-                    elo_pred.confidence_flag = Some(ml_pred.confidence_flag);
+                    // "ok" → "low_context": parser can't extract tourney metadata, so even
+                    // "ok" predictions are made with default tournament context (ATP 250, R32, BO3).
+                    // Stronger flags ("low_history", "insufficient_data") are preserved as-is.
+                    let flag = match ml_pred.confidence_flag.as_str() {
+                        "ok" => "low_context".to_string(),
+                        other => other.to_string(),
+                    };
+                    elo_pred.confidence_flag = Some(flag);
                     elo_pred
                 })
                 .collect();
@@ -463,5 +470,32 @@ mod tests {
         let response = predict_text("", &state);
         assert_eq!(response.predictions.len(), 0);
         assert!(response.error.is_some());
+    }
+
+    #[test]
+    fn test_confidence_flag_ok_becomes_low_context() {
+        let flag = match "ok" {
+            "ok" => "low_context".to_string(),
+            other => other.to_string(),
+        };
+        assert_eq!(flag, "low_context");
+    }
+
+    #[test]
+    fn test_confidence_flag_low_history_preserved() {
+        let flag = match "low_history" {
+            "ok" => "low_context".to_string(),
+            other => other.to_string(),
+        };
+        assert_eq!(flag, "low_history");
+    }
+
+    #[test]
+    fn test_confidence_flag_insufficient_data_preserved() {
+        let flag = match "insufficient_data" {
+            "ok" => "low_context".to_string(),
+            other => other.to_string(),
+        };
+        assert_eq!(flag, "insufficient_data");
     }
 }

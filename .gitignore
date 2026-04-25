@@ -53,6 +53,7 @@ mlruns/
 .tensorboard/
 tb_logs/
 results/
+catboost_info/
 
 # AI/LLM — system prompts and personal notes (keep docs/superpowers/plans/)
 system_prompts/
