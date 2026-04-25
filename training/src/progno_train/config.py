@@ -63,3 +63,11 @@ class Paths:
     @property
     def model_card(self) -> Path:
         return self.artifacts / "model_card.json"
+
+    @property
+    def odds_xlsx_dir(self) -> Path:
+        return self.data_raw / "tennis_data_xlsx"
+
+    @property
+    def name_map(self) -> Path:
+        return self.data_raw.parent / "manual" / "name_map.csv"

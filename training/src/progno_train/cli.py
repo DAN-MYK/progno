@@ -84,6 +84,20 @@ def run_elo(paths: Paths) -> int:
         for row in all_names.itertuples()
         if (parts := str(row.name).split())
     }
+
+    # Phase 3.5: join closing odds from tennis-data.co.uk XLSX if available
+    xlsx_files = sorted(paths.odds_xlsx_dir.glob("*.xlsx")) if paths.odds_xlsx_dir.exists() else []
+    if xlsx_files:
+        from progno_train.ingest_xlsx import ingest_tennis_data_xlsx
+        from progno_train.odds_join import join_odds
+        log.info("joining odds from %d XLSX files...", len(xlsx_files))
+        odds_df = ingest_tennis_data_xlsx(xlsx_files)
+        matches = join_odds(matches, odds_df, name_map_path=paths.name_map)
+        log.info("odds joined — PSW coverage: %.1f%%",
+                 100.0 * matches["PSW"].notna().mean())
+    else:
+        log.warning("no XLSX files in %s — ROI gate will be skipped", paths.odds_xlsx_dir)
+
     paths.artifacts.mkdir(parents=True, exist_ok=True)
     write_elo_state(state, paths.elo_state, data_as_of=data_as_of, player_names=player_names)
     write_players(matches, paths.players)
