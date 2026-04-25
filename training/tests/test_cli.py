@@ -51,11 +51,9 @@ def test_run_elo_writes_artifacts(paths: Paths) -> None:
     assert state["players"]["alpha"]["elo_overall"] > 1500.0
 
 
-def test_run_elo_joins_odds_when_xlsx_present(tmp_path):
+def test_run_elo_joins_odds_when_xlsx_present(tmp_path: Path) -> None:
     """run_elo should join odds from XLSX files if present in odds_xlsx_dir."""
     import openpyxl
-    from progno_train.cli import run_elo
-    from progno_train.config import Paths
 
     paths = Paths.for_tour(tmp_path, "atp")
     paths.data_staging.mkdir(parents=True, exist_ok=True)
@@ -111,11 +109,9 @@ def test_run_elo_joins_odds_when_xlsx_present(tmp_path):
     assert mh["PSW"].notna().any(), "Expected at least one PSW value after odds join"
 
 
-def test_run_elo_skips_odds_gracefully_when_no_xlsx(tmp_path, caplog):
+def test_run_elo_skips_odds_gracefully_when_no_xlsx(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
     """run_elo should log a warning and proceed without odds if no XLSX files."""
     import logging
-    from progno_train.cli import run_elo
-    from progno_train.config import Paths
 
     paths = Paths.for_tour(tmp_path, "atp")
     paths.data_staging.mkdir(parents=True, exist_ok=True)
@@ -142,4 +138,4 @@ def test_run_elo_skips_odds_gracefully_when_no_xlsx(tmp_path, caplog):
     with caplog.at_level(logging.WARNING, logger="progno_train"):
         rc = run_elo(paths)
     assert rc == 0
-    assert any("xlsx" in msg.lower() or "roi" in msg.lower() for msg in caplog.messages)
+    assert any("roi gate will be skipped" in msg.lower() for msg in caplog.messages)
