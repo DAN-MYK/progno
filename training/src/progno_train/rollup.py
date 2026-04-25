@@ -9,6 +9,7 @@ import pandas as pd
 from progno_train.elo import (
     INITIAL_RATING,
     apply_elo_update,
+    apply_welo_update,
     context_multiplier,
     k_factor,
 )
@@ -23,6 +24,10 @@ class PlayerElo:
     elo_hard: float = INITIAL_RATING
     elo_clay: float = INITIAL_RATING
     elo_grass: float = INITIAL_RATING
+    welo_overall: float = INITIAL_RATING
+    welo_hard: float = INITIAL_RATING
+    welo_clay: float = INITIAL_RATING
+    welo_grass: float = INITIAL_RATING
     matches_played: int = 0
     matches_played_hard: int = 0
     matches_played_clay: int = 0
@@ -54,6 +59,28 @@ def _update_surface(
     setattr(loser, attr, new_l)
     setattr(winner, played_attr, getattr(winner, played_attr) + 1)
     setattr(loser, played_attr, getattr(loser, played_attr) + 1)
+
+
+def _update_welo_surface(
+    winner: PlayerElo,
+    loser: PlayerElo,
+    surface: str,
+    k: float,
+    sets_w: int,
+    sets_l: int,
+) -> None:
+    if surface not in TRACKED_SURFACES:
+        return
+    attr = f"welo_{surface.lower()}"
+    new_w, new_l = apply_welo_update(
+        getattr(winner, attr),
+        getattr(loser, attr),
+        k=k,
+        sets_w=sets_w,
+        sets_l=sets_l,
+    )
+    setattr(winner, attr, new_w)
+    setattr(loser, attr, new_l)
 
 
 def rollup_elo(matches: pd.DataFrame) -> dict[int, PlayerElo]:
@@ -96,5 +123,14 @@ def rollup_elo(matches: pd.DataFrame) -> dict[int, PlayerElo]:
         loser.matches_played += 1
 
         _update_surface(winner, loser, row.surface, k_with_context=k)
+
+        sets_w = int(getattr(row, "w_sets", 0) or 0)
+        sets_l = int(getattr(row, "l_sets", 0) or 0)
+        new_ww, new_wl = apply_welo_update(
+            winner.welo_overall, loser.welo_overall, k=k, sets_w=sets_w, sets_l=sets_l
+        )
+        winner.welo_overall = new_ww
+        loser.welo_overall = new_wl
+        _update_welo_surface(winner, loser, row.surface, k=k, sets_w=sets_w, sets_l=sets_l)
 
     return state
