@@ -13,6 +13,17 @@ POPULATION_SECOND_WON_PCT = 0.50
 POPULATION_BP_SAVE_PCT = 0.63
 POPULATION_RETURN_PTS_PCT = 0.38
 
+# Numeric constants — give them names so audit trail is clear
+INITIAL_ELO = 1500.0              # default Elo for a player with no history
+SURFACE_MIN_MATCHES = 20          # min surface matches before surface Elo is trusted (spec §2.3)
+WIN_RATE_RECENT = 50              # rolling window: recent form
+WIN_RATE_SURFACE = 20             # rolling window: surface-specific form
+WIN_RATE_TOP20 = 30               # rolling window: performance vs top-20
+WIN_RATE_ALL_TIME = 9999          # sentinel: "all available history" (no window limit)
+DEFAULT_PLAYER_AGE = 25.0         # fallback age when absent from match data
+DEFAULT_PLAYER_HEIGHT_CM = 185.0  # fallback height (cm) when absent
+EPS = 1e-7                        # numerical stability guard for division
+
 _PLAYER_INDEX_BASE_COLS = [
     "tourney_date", "surface",
     "minutes", "completed_sets",
@@ -186,7 +197,7 @@ def serve_efficiency(
     """Rolling serve stats over last n matches."""
     base = _frame if _frame is not None else _player_matches_before(history, player_id, as_of_date)
     df = base.tail(n)
-    eps = 1e-6
+    eps = EPS
 
     def _safe_div(a: float, b: float) -> float | None:
         return float(a / b) if b > eps else None
@@ -226,7 +237,7 @@ def _rolling_serve_stats(
     if len(df) < min_periods:
         return {"second_won_pct": None, "bp_save_pct": None, "return_pts_pct": None}
 
-    eps = 1e-6
+    eps = EPS
     won_df = df[df["won"]] if "won" in df.columns else df
     lost_df = df[~df["won"]] if "won" in df.columns else pd.DataFrame()
 
@@ -340,14 +351,14 @@ def compute_match_features(
     feats: dict[str, Any] = {}
 
     since_12m = tourney_date - pd.DateOffset(months=12)
-    wr_a_50,    lhf_a = rolling_win_rate(history, player_a_id, tourney_date, 50, _frame=_frame_a)
-    wr_b_50,    lhf_b = rolling_win_rate(history, player_b_id, tourney_date, 50, _frame=_frame_b)
-    wr_a_surf,  _     = rolling_win_rate(history, player_a_id, tourney_date, 20, surface=surface, _frame=_frame_a)
-    wr_b_surf,  _     = rolling_win_rate(history, player_b_id, tourney_date, 20, surface=surface, _frame=_frame_b)
-    wr_a_12m,   _     = rolling_win_rate(history, player_a_id, tourney_date, 9999, since_date=since_12m, _frame=_frame_a)
-    wr_b_12m,   _     = rolling_win_rate(history, player_b_id, tourney_date, 9999, since_date=since_12m, _frame=_frame_b)
-    wr_a_top20, _     = rolling_win_rate(history, player_a_id, tourney_date, 30, max_opponent_rank=20, _frame=_frame_a)
-    wr_b_top20, _     = rolling_win_rate(history, player_b_id, tourney_date, 30, max_opponent_rank=20, _frame=_frame_b)
+    wr_a_50,    lhf_a = rolling_win_rate(history, player_a_id, tourney_date, WIN_RATE_RECENT, _frame=_frame_a)
+    wr_b_50,    lhf_b = rolling_win_rate(history, player_b_id, tourney_date, WIN_RATE_RECENT, _frame=_frame_b)
+    wr_a_surf,  _     = rolling_win_rate(history, player_a_id, tourney_date, WIN_RATE_SURFACE, surface=surface, _frame=_frame_a)
+    wr_b_surf,  _     = rolling_win_rate(history, player_b_id, tourney_date, WIN_RATE_SURFACE, surface=surface, _frame=_frame_b)
+    wr_a_12m,   _     = rolling_win_rate(history, player_a_id, tourney_date, WIN_RATE_ALL_TIME, since_date=since_12m, _frame=_frame_a)
+    wr_b_12m,   _     = rolling_win_rate(history, player_b_id, tourney_date, WIN_RATE_ALL_TIME, since_date=since_12m, _frame=_frame_b)
+    wr_a_top20, _     = rolling_win_rate(history, player_a_id, tourney_date, WIN_RATE_TOP20, max_opponent_rank=20, _frame=_frame_a)
+    wr_b_top20, _     = rolling_win_rate(history, player_b_id, tourney_date, WIN_RATE_TOP20, max_opponent_rank=20, _frame=_frame_b)
 
     feats["win_rate_diff"]         = wr_a_50   - wr_b_50
     feats["win_rate_surface_diff"] = wr_a_surf  - wr_b_surf
@@ -373,7 +384,7 @@ def compute_match_features(
     feats["h2h_sample_size"] = h2h_n
 
     def _elo(pid: int, field: str) -> float:
-        return float(elo_state.get("players", {}).get(str(pid), {}).get(field, 1500))
+        return float(elo_state.get("players", {}).get(str(pid), {}).get(field, INITIAL_ELO))
 
     surf_key = surface.lower() if isinstance(surface, str) else "hard"
     feats["elo_overall_diff"] = _elo(player_a_id, "elo_overall") - _elo(player_b_id, "elo_overall")
@@ -385,7 +396,7 @@ def compute_match_features(
         n_surf = int(_elo(pid, f"matches_played_{surf_key}") or 0)
         welo_surf = _elo(pid, f"welo_{surf_key}")
         welo_ovrl = _elo(pid, "welo_overall")
-        if n_surf >= 20:
+        if n_surf >= SURFACE_MIN_MATCHES:
             return 0.5 * welo_surf + 0.5 * welo_ovrl
         return welo_ovrl
 
@@ -403,8 +414,8 @@ def compute_match_features(
         _b = new_srv_b[_stat] if new_srv_b[_stat] is not None else _median
         feats[f"{_stat}_diff"] = _a - _b
 
-    feats["age_diff"]        = (player_a_age    or 25.0)  - (player_b_age    or 25.0)
-    feats["height_diff"]     = (player_a_height or 185.0) - (player_b_height or 185.0)
+    feats["age_diff"]    = (player_a_age    or DEFAULT_PLAYER_AGE)        - (player_b_age    or DEFAULT_PLAYER_AGE)
+    feats["height_diff"] = (player_a_height or DEFAULT_PLAYER_HEIGHT_CM)  - (player_b_height or DEFAULT_PLAYER_HEIGHT_CM)
     feats["lefty_vs_righty"] = int((player_a_hand == "L") != (player_b_hand == "L"))
 
     feats["surface"]       = surface
