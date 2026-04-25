@@ -94,6 +94,15 @@ app/src-tauri/target/
 app/node_modules/
 app/dist/
 
-# Sidecar compiled binaries
+# Sidecar compiled binaries and build artifacts
 sidecar/dist/
+sidecar/build/
+sidecar/*.spec
+sidecar/*.bak
 app/sidecar/dist/
+
+# ML artifacts in app (versioned artifacts live in training/, deployed via publish workflow)
+app/src-tauri/artifacts/
+
+# Backup files
+*.bak

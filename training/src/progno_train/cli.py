@@ -137,7 +137,7 @@ def run_train(paths: Paths, tour: str) -> int:
 def run_validate(paths: Paths) -> int:
     from catboost import CatBoostClassifier, Pool
     from progno_train.train import apply_platt, get_feature_cols, TEST_START_YEAR
-    from progno_train.validate import compute_log_loss, compute_ece, acceptance_gate
+    from progno_train.validate import compute_log_loss, compute_ece, compute_roi, acceptance_gate
 
     log.info("running validation and acceptance gate...")
     model = CatBoostClassifier()
@@ -163,9 +163,17 @@ def run_validate(paths: Paths) -> int:
     baseline_ll = compute_log_loss(y, elo_probs)
     ece = compute_ece(y, cal_probs)
 
+    # Compute ROI from Pinnacle closing odds (if available)
+    roi = None
+    if "pinnacle_odds" in test_df.columns and test_df["pinnacle_odds"].notna().any():
+        roi = compute_roi(y, cal_probs, test_df["pinnacle_odds"].values)
+        log.info("ROI (0.25× Kelly vs Pinnacle closing): %.4f", roi or 0.0)
+    else:
+        log.warning("ROI gate SKIPPED: no closing odds in dataset (expected from tennis-data.co.uk join)")
+
     log.info("model log-loss: %.4f | Elo baseline: %.4f | ECE: %.4f", model_ll, baseline_ll, ece)
     try:
-        acceptance_gate(model_ll, baseline_ll, ece)
+        acceptance_gate(model_ll, baseline_ll, ece, roi=roi)
         log.info("acceptance gate: PASS")
     except ValueError as e:
         log.error("acceptance gate: FAIL — %s", e)
