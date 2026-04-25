@@ -104,3 +104,43 @@ def test_context_multiplier_unknown_level_falls_back_to_atp() -> None:
 )
 def test_context_multiplier_positive(level: str, round_: str, best_of: int) -> None:
     assert context_multiplier(level, round_, best_of) > 0.0
+
+
+from progno_train.elo import mov_multiplier, apply_welo_update  # noqa: E402
+
+
+def test_welo_mov_multiplier_values() -> None:
+    # 3-0 or 2-0 → ratio=1.0 → 2*1.0-0.5=1.50
+    assert mov_multiplier(3, 0) == pytest.approx(1.50)
+    assert mov_multiplier(2, 0) == pytest.approx(1.50)
+    # 3-1 → ratio=0.75 → 2*0.75-0.5=1.00
+    assert mov_multiplier(3, 1) == pytest.approx(1.00)
+    # 3-2 → ratio=3/5=0.60 → 2*0.60-0.5=0.70
+    assert mov_multiplier(3, 2) == pytest.approx(0.70)
+    # 2-1 → ratio=2/3 → 2*(2/3)-0.5=5/6≈0.8333
+    assert mov_multiplier(2, 1) == pytest.approx(2.0 * (2 / 3) - 0.5)
+    # degenerate: both 0 → 1.0 (neutral fallback)
+    assert mov_multiplier(0, 0) == pytest.approx(1.0)
+
+
+def test_welo_dominant_win_higher_k() -> None:
+    # 3-0 win (multiplier=1.5) → winner gains more than standard Elo (multiplier=1.0)
+    std_w, _ = apply_elo_update(1500, 1500, k=32)
+    welo_w, _ = apply_welo_update(1500, 1500, k=32, sets_w=3, sets_l=0)
+    assert welo_w > std_w
+
+
+def test_welo_close_win_lower_k() -> None:
+    # 3-2 win (multiplier=0.7) → winner gains less than standard Elo (multiplier=1.0)
+    std_w, _ = apply_elo_update(1500, 1500, k=32)
+    welo_w, _ = apply_welo_update(1500, 1500, k=32, sets_w=3, sets_l=2)
+    assert welo_w < std_w
+
+
+def test_welo_total_mass_not_conserved() -> None:
+    # WElo is non-constant: dominant wins move more rating than close wins
+    nw_30, nl_30 = apply_welo_update(1500, 1500, k=32, sets_w=3, sets_l=0)
+    nw_32, nl_32 = apply_welo_update(1500, 1500, k=32, sets_w=3, sets_l=2)
+    assert nw_30 > 1500          # winner always gains
+    assert nw_32 > 1500          # winner gains even in close match
+    assert nw_30 - 1500 > nw_32 - 1500  # dominant win → larger rating jump

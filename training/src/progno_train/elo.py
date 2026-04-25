@@ -72,3 +72,29 @@ def context_multiplier(tourney_level: str, round_: str, best_of: int) -> float:
     rf = _round_factor(round_)
     bo5 = 1.0 if best_of == 5 else 0.90
     return lf * rf * bo5
+
+
+def mov_multiplier(sets_winner: int, sets_loser: int) -> float:
+    """Map set ratio [0.5, 1.0] to K multiplier [0.50, 1.50].
+
+    Returns 1.0 for degenerate inputs (no sets played).
+    Examples: 3-0→1.50, 3-1→1.00, 3-2→0.70, 2-0→1.50, 2-1≈0.83.
+    """
+    total = sets_winner + sets_loser
+    if total <= 0:
+        return 1.0
+    return 2.0 * (sets_winner / total) - 0.5
+
+
+def apply_welo_update(
+    winner_rating: float,
+    loser_rating: float,
+    k: float,
+    sets_w: int,
+    sets_l: int,
+) -> tuple[float, float]:
+    """WElo: apply_elo_update with K scaled by margin-of-victory multiplier."""
+    k_welo = k * mov_multiplier(sets_w, sets_l)
+    expected_w = expected_probability(winner_rating, loser_rating)
+    delta = k_welo * (1.0 - expected_w)
+    return winner_rating + delta, loser_rating - delta
