@@ -75,7 +75,7 @@ def context_multiplier(tourney_level: str, round_: str, best_of: int) -> float:
 
 
 def mov_multiplier(sets_winner: int, sets_loser: int) -> float:
-    """Map set ratio [0.5, 1.0] to K multiplier [0.50, 1.50].
+    """Map set ratio to K multiplier. Valid range: [0.60, 1.0] → [0.70, 1.50].
 
     Returns 1.0 for degenerate inputs (no sets played).
     Examples: 3-0→1.50, 3-1→1.00, 3-2→0.70, 2-0→1.50, 2-1≈0.83.

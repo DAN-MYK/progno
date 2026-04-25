@@ -4,8 +4,11 @@ import pytest
 
 from progno_train.elo import (
     apply_elo_update,
+    apply_welo_update,
+    context_multiplier,
     expected_probability,
     k_factor,
+    mov_multiplier,
 )
 
 
@@ -71,7 +74,6 @@ def test_k_factor_rejects_negative_n() -> None:
         k_factor(-1)
 
 
-from progno_train.elo import context_multiplier  # noqa: E402
 
 
 def test_context_multiplier_grand_slam_bo5_final() -> None:
@@ -106,7 +108,6 @@ def test_context_multiplier_positive(level: str, round_: str, best_of: int) -> N
     assert context_multiplier(level, round_, best_of) > 0.0
 
 
-from progno_train.elo import apply_welo_update, mov_multiplier  # noqa: E402
 
 
 def test_welo_mov_multiplier_values() -> None:

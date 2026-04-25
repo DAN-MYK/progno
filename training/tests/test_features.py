@@ -134,6 +134,10 @@ def test_compute_match_features_returns_expected_keys():
     assert "win_rate_diff" in feats
     assert "h2h_score" in feats
     assert feats["elo_overall_diff"] == 100.0
+    for key in ["welo_overall_diff", "welo_surface_diff",
+                "second_won_pct_diff", "bp_save_pct_diff", "return_pts_pct_diff"]:
+        assert key in feats, f"missing new feature key: {key}"
+    assert len(feats) == 30
 
 
 def test_elo_monotonicity():
