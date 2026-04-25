@@ -1,7 +1,5 @@
 """Tests for tennis-data.co.uk XLSX ingestion."""
 
-import io
-import textwrap
 from pathlib import Path
 
 import pandas as pd
@@ -116,3 +114,18 @@ def test_parse_xlsx_date():
     assert _parse_xlsx_date("15/01/2023") == pd.Timestamp("2023-01-15")
     assert _parse_xlsx_date("01/07/2022") == pd.Timestamp("2022-07-01")
     assert pd.isna(_parse_xlsx_date("invalid"))
+
+
+def test_native_excel_datetime_cells_parsed(tmp_path):
+    """Real Excel files store dates as datetime objects, not DD/MM/YYYY strings."""
+    import datetime
+    import openpyxl
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.append(["Date", "Winner", "Loser", "PSW", "PSL", "B365W", "B365L"])
+    ws.append([datetime.date(2023, 1, 15), "Carlos Alcaraz", "Novak Djokovic", 1.85, 2.10, 1.83, 2.00])
+    p = tmp_path / "native_dates.xlsx"
+    wb.save(p)
+    df = ingest_tennis_data_xlsx([p])
+    assert len(df) == 1, f"Expected 1 row, got {len(df)} (native Excel datetime not parsed)"
+    assert df["date_week"].iloc[0] == pd.Timestamp("2023-01-09")

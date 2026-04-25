@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime
 from pathlib import Path
 
 import pandas as pd
@@ -11,7 +12,9 @@ _ODDS_COLS = ["PSW", "PSL", "B365W", "B365L"]
 
 
 def _parse_xlsx_date(s: object) -> pd.Timestamp:
-    """Parse DD/MM/YYYY string or return NaT on failure."""
+    """Parse DD/MM/YYYY string, pd.Timestamp, or datetime; return NaT on failure."""
+    if isinstance(s, (pd.Timestamp, datetime.datetime, datetime.date)):
+        return pd.Timestamp(s)
     try:
         return pd.to_datetime(str(s), format="%d/%m/%Y", errors="raise")
     except Exception:
@@ -26,16 +29,19 @@ def _monday_of_week(ts: pd.Timestamp) -> pd.Timestamp:
 def _norm_name(name: object) -> str:
     """Normalize player name to 'lastname initial' lowercase ASCII.
 
-    'Carlos Alcaraz' -> 'alcaraz c'
-    'Kevin Krawietz' -> 'krawietz k'
+    'Carlos Alcaraz' → 'alcaraz c'
+    'Kévin Krawietz' → 'krawietz k'
+    'Sinner' → 'sinner'
     """
     s = unidecode(str(name)).strip()
     parts = s.split()
-    if len(parts) == 0:
+    if not parts:
         return ""
+    if len(parts) == 1:
+        return parts[0].lower()
     last = parts[-1].lower()
-    initial = parts[0][0].lower() if parts[0] else ""
-    return f"{last} {initial}" if initial else last
+    initial = parts[0][0].lower()
+    return f"{last} {initial}"
 
 
 def ingest_tennis_data_xlsx(paths: list[Path]) -> pd.DataFrame:
