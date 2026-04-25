@@ -2,7 +2,6 @@
 
 import numpy as np
 import pandas as pd
-import pytest
 
 from progno_train.train import (
     fit_platt,
@@ -108,12 +107,27 @@ def test_get_feature_cols_excludes_metadata():
     assert "elo_overall_diff" in cols
 
 
-def test_wta_parameters_flow_through_splits():
-    """Verify WTA burn-in year is respected in walk-forward splits."""
+def test_wta_full_training_pipeline():
+    """E2e: WTA synthetic data → _train_catboost → fit_platt → apply_platt → metrics.
+
+    Verifies the full training stack produces finite, in-range outputs with no
+    temporal leakage between train/cal/test splits.
+    """
     import math
-    rng = np.random.default_rng(42)
-    n = 160
-    years = np.repeat(np.arange(2008, 2026), math.ceil(n / 18))[:n]
+    from progno_train.train import (
+        _train_catboost,
+        fit_platt,
+        apply_platt,
+        get_feature_cols,
+        CAL_YEAR,
+        TEST_START_YEAR,
+    )
+    from progno_train.validate import compute_log_loss, compute_ece
+    from catboost import Pool, CatBoostClassifier
+
+    rng = np.random.default_rng(7)
+    n = 560  # 40 rows × 14 years (2012–2025)
+    years = np.repeat(np.arange(2012, 2026), math.ceil(n / 14))[:n]
     df = pd.DataFrame({
         "elo_overall_diff": rng.normal(0, 100, n),
         "win_rate_diff": rng.normal(0, 0.2, n),
@@ -127,29 +141,40 @@ def test_wta_parameters_flow_through_splits():
         "best_of_5": rng.integers(0, 2, n),
         "label": rng.integers(0, 2, n),
         "year": years,
-        "tourney_date": pd.date_range("2008-01-01", periods=n, freq="3D"),
+        "tourney_date": pd.date_range("2012-01-01", periods=n, freq="3D"),
     })
 
-    # WTA-specific parameters (per spec §6.2 and §2.5)
-    splits = walk_forward_splits(
-        df,
-        burn_in_year=BURN_IN_YEAR_WTA,  # 2007 (serve stats start)
-        val_start=2019,
-        test_start=2023,
-    )
+    feature_cols = get_feature_cols(df)
+    train_df = df[(df["year"] > BURN_IN_YEAR_WTA) & (df["year"] < CAL_YEAR)]
+    cal_df = df[df["year"] == CAL_YEAR]
+    test_df = df[df["year"] >= TEST_START_YEAR]
 
-    splits_list = list(splits)
-    assert len(splits_list) > 0, "Should produce at least one split"
+    assert len(train_df) > 0
+    assert len(cal_df) > 0
+    assert len(test_df) > 0
 
-    for train_df, val_df, test_df in splits_list:
-        # Burn-in is excluded from training
-        assert train_df["year"].min() > BURN_IN_YEAR_WTA, \
-            f"Train should exclude burn-in years (<= {BURN_IN_YEAR_WTA}), got {train_df['year'].min()}"
+    # No temporal leakage
+    assert train_df["year"].max() < cal_df["year"].min()
+    assert cal_df["year"].max() < test_df["year"].min()
 
-        # Validation and test years are disjoint from training
-        if len(val_df) > 0:
-            assert set(train_df["year"]).isdisjoint(set(val_df["year"])), \
-                "Train and val should not overlap"
-        if len(test_df) > 0:
-            assert set(train_df["year"]).isdisjoint(set(test_df["year"])), \
-                "Train and test should not overlap"
+    model: CatBoostClassifier = _train_catboost(train_df, cal_df, feature_cols)
+
+    from progno_train.train import CAT_FEATURES
+    cat_idx = [i for i, c in enumerate(feature_cols) if c in CAT_FEATURES]
+    cal_pool = Pool(cal_df[feature_cols].fillna(0), cat_features=cat_idx, feature_names=feature_cols)
+    raw_cal = model.predict_proba(cal_pool)[:, 1]
+    a, b = fit_platt(raw_cal, cal_df["label"].values)
+
+    test_pool = Pool(test_df[feature_cols].fillna(0), cat_features=cat_idx, feature_names=feature_cols)
+    raw_test = model.predict_proba(test_pool)[:, 1]
+    cal_probs = apply_platt(raw_test, a, b)
+
+    assert cal_probs.min() >= 0.0
+    assert cal_probs.max() <= 1.0
+    assert np.isfinite(cal_probs).all()
+
+    logloss = compute_log_loss(test_df["label"].values, cal_probs)
+    ece = compute_ece(test_df["label"].values, cal_probs)
+
+    assert np.isfinite(logloss) and logloss >= 0.0
+    assert np.isfinite(ece) and 0.0 <= ece <= 1.0
