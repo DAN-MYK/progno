@@ -124,8 +124,10 @@ def rollup_elo(matches: pd.DataFrame) -> dict[int, PlayerElo]:
 
         _update_surface(winner, loser, row.surface, k_with_context=k)
 
-        sets_w = int(getattr(row, "w_sets", 0) or 0)
-        sets_l = int(getattr(row, "l_sets", 0) or 0)
+        _raw_w = getattr(row, "w_sets", None)
+        sets_w = 0 if _raw_w is None or pd.isna(_raw_w) else int(_raw_w)
+        _raw_l = getattr(row, "l_sets", None)
+        sets_l = 0 if _raw_l is None or pd.isna(_raw_l) else int(_raw_l)
         new_ww, new_wl = apply_welo_update(
             winner.welo_overall, loser.welo_overall, k=k, sets_w=sets_w, sets_l=sets_l
         )
