@@ -65,6 +65,7 @@ def test_join_is_orientation_agnostic(tmp_path):
     result = join_odds(sack, odds_df, name_map_path=None)
     # PSW from XLSX (2.1) → PSL for Sackmann winner Alcaraz = 1.8
     assert result["PSW"].notna().iloc[0]
+    assert abs(result["PSW"].iloc[0] - 1.8) < 1e-9  # XLSX PSL becomes Sackmann PSW after swap
 
 
 def test_tolerance_join_7_days(tmp_path):
@@ -96,7 +97,7 @@ def test_fuzzy_name_match(tmp_path):
     sack = pd.DataFrame([_sack("Alexander Zverev", "Stefanos Tsitsipas", "2023-03-13")])
     odds_df = pd.DataFrame([_odds("A. Zverev", "S. Tsitsipas", "2023-03-13")])
     result = join_odds(sack, odds_df, name_map_path=None)
-    assert "PSW" in result.columns
+    assert result["PSW"].notna().iloc[0]
 
 
 def test_unmatched_row_gets_nan(tmp_path):

@@ -6,7 +6,8 @@ import datetime
 from pathlib import Path
 
 import pandas as pd
-from unidecode import unidecode
+
+from progno_train.odds_join import normalize_name as _norm_name
 
 _ODDS_COLS = ["PSW", "PSL", "B365W", "B365L"]
 
@@ -24,24 +25,6 @@ def _parse_xlsx_date(s: object) -> pd.Timestamp:
 def _monday_of_week(ts: pd.Timestamp) -> pd.Timestamp:
     """Return the Monday of the ISO week containing ts."""
     return ts - pd.Timedelta(days=ts.weekday())
-
-
-def _norm_name(name: object) -> str:
-    """Normalize player name to 'lastname initial' lowercase ASCII.
-
-    'Carlos Alcaraz' → 'alcaraz c'
-    'Kévin Krawietz' → 'krawietz k'
-    'Sinner' → 'sinner'
-    """
-    s = unidecode(str(name)).strip()
-    parts = s.split()
-    if not parts:
-        return ""
-    if len(parts) == 1:
-        return parts[0].lower()
-    last = parts[-1].lower()
-    initial = parts[0][0].lower()
-    return f"{last} {initial}"
 
 
 def ingest_tennis_data_xlsx(paths: list[Path]) -> pd.DataFrame:
