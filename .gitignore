@@ -9,7 +9,6 @@ __pycache__/
 # Data — raw and staging are derived, don't commit
 training/data/raw/
 training/data/staging/
-training/data/manual/name_map.csv
 
 # Artifacts — versioned on disk, not in git
 training/artifacts/v*/
