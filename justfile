@@ -68,6 +68,8 @@ check:
     cd training && uv run pytest -v
 
 # --- Phase 3.5 targets ---
+# Run `just fetch-odds-data` first to download XLSX files, then these targets
+# re-run the elo step which joins odds when XLSX files are present (Phase 3.5 Task 4).
 fetch-odds-data:
     bash training/scripts/fetch_tennis_data.sh
 
