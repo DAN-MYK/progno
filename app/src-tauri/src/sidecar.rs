@@ -33,14 +33,11 @@ struct PredictPayload {
 #[derive(Deserialize)]
 pub struct MlMatchPrediction {
     pub prob_a_wins: f64,
-    pub prob_a_wins_uncalibrated: f64,
-    pub elo_prob_a_wins: f64,
     pub confidence_flag: String,
 }
 
 #[derive(Deserialize)]
 pub struct MlPredictResponse {
-    pub model_version: String,
     pub predictions: Vec<MlMatchPrediction>,
 }
 

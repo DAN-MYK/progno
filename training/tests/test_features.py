@@ -1,10 +1,8 @@
 """Tests for feature engineering: no leakage, cold start, H2H."""
 
 import pandas as pd
-import pytest
 
 from progno_train.features import (
-    LOW_HISTORY_THRESHOLD,
     POPULATION_WIN_RATE,
     _build_h2h_index,
     _build_player_index,

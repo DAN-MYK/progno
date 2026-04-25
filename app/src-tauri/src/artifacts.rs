@@ -2,12 +2,6 @@ use serde_json::Value;
 use std::fs;
 use std::path::PathBuf;
 
-/// Phase 1b: next to the binary (./elo_state.json).
-/// TODO: switch to app.path().app_data_dir() in Phase 2+.
-pub fn elo_state_path() -> PathBuf {
-    PathBuf::from("elo_state.json")
-}
-
 /// Load Elo state from JSON file.
 pub fn load_elo_state(path: &str) -> Result<Value, String> {
     let content = fs::read_to_string(path)

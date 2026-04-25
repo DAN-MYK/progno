@@ -13,7 +13,7 @@ class Paths:
     artifacts: Path
 
     @classmethod
-    def default(cls, root: Path) -> "Paths":
+    def default(cls, root: Path) -> Paths:
         return cls(
             data_raw=root / "data" / "raw",
             data_staging=root / "data" / "staging",
@@ -21,7 +21,7 @@ class Paths:
         )
 
     @classmethod
-    def for_tour(cls, root: Path, tour: str) -> "Paths":
+    def for_tour(cls, root: Path, tour: str) -> Paths:
         return cls(
             data_raw=root / "data" / "raw",
             data_staging=root / "data" / "staging" / tour,
