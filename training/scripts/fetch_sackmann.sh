@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Clone or update Sackmann's tennis_atp repo into data/raw/
-# Usage: bash scripts/fetch_sackmann.sh
+# Clone or update Sackmann's tennis_atp repo into training/data/raw/
+# Usage: bash training/scripts/fetch_sackmann.sh  (from repo root)
 
-TARGET="data/raw/tennis_atp"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TARGET="$SCRIPT_DIR/../data/raw/tennis_atp"
 
 if [ ! -d "$TARGET" ]; then
     mkdir -p "$(dirname "$TARGET")"
@@ -13,11 +14,4 @@ else
     (cd "$TARGET" && git pull --ff-only)
 fi
 
-# Symlink match CSVs to the flat location our ingester expects
-cd data/raw
-rm -f atp_matches_*.csv
-for f in tennis_atp/atp_matches_[0-9]*.csv; do
-    ln -sf "$f" "$(basename "$f")"
-done
-
-echo "Sackmann data available in $TARGET"
+echo "Sackmann ATP data available in $TARGET"
