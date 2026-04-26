@@ -20,7 +20,7 @@ Claude Code writes all code. Before touching any file:
 
 ## Current status
 
-- **Completed**: Phase 1a, 1b, 2 (Kelly), 3 (CatBoost + Platt calibration + sidecar), 4 (WTA dual model), 3.5 (odds ingest + ROI gate), 5 (schedule scraper, bet tracking, LLM parser)
+- **Completed**: Phase 1a, 1b, 2 (Kelly), 3 (CatBoost + Platt calibration + sidecar), 4 (WTA dual model), 3.5 (odds ingest + ROI gate), 5 (schedule scraper, bet tracking, LLM parser, injury toggle, news check, retrain-from-UI)
 - **Active on master**: maintenance
 - **Implementation plans**: `docs/superpowers/plans/` (check for the latest phase plan)
 
