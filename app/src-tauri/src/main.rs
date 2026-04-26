@@ -59,6 +59,7 @@ fn main() {
             rapidapi::fetch_rankings,
             rapidapi::fetch_schedule_auto,
             config::load_api_keys,
+            commands::trigger_retrain,
         ])
         .run(tauri::generate_context!())
         .map_err(|e| eprintln!("Failed to run Tauri: {}", e))

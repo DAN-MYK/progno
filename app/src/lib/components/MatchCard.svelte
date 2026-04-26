@@ -1,20 +1,34 @@
 <script lang="ts">
   import type { Prediction, KellyResult, BetRecord } from '../stores'
-  import { bankroll, kelly_fraction, bets } from '../stores'
+  import { bankroll, kelly_fraction, bets, llmProvider, llmApiKey } from '../stores'
   import { invoke } from '@tauri-apps/api/core'
 
   let { prediction }: { prediction: Prediction } = $props()
 
+  // ── Odds & Kelly ──────────────────────────────────────────────────────────
   let odds = $state<number | null>(null)
   let kellyResult = $state<KellyResult | null>(null)
   let loading = $state(false)
   let error = $state<string | null>(null)
+
+  // ── UI toggles ────────────────────────────────────────────────────────────
   let showBreakdown = $state(false)
   let showLogBet = $state(false)
   let betOnA = $state(true)
   let logBetError = $state<string | null>(null)
   let logBetLoading = $state(false)
 
+  // ── Injury toggles ────────────────────────────────────────────────────────
+  let injuredA = $state(false)
+  let injuredB = $state(false)
+  let anyInjury = $derived(injuredA || injuredB)
+
+  // ── News check ────────────────────────────────────────────────────────────
+  let newsLoading = $state(false)
+  let newsResult = $state<{ injury_flag: boolean; summary: string } | null>(null)
+  let newsError = $state<string | null>(null)
+
+  // ── Probability derivations ───────────────────────────────────────────────
   let probA = $derived(Math.round(prediction.prob_a_wins * 1000) / 10)
   let probB = $derived(Math.round(prediction.prob_b_wins * 1000) / 10)
   let mlProbA = $derived(
@@ -29,20 +43,37 @@
       : null
   )
 
-  async function onOddsChange() {
+  // Base probability for player A (decimal, 0–1)
+  let baseProb = $derived(prediction.ml_prob_a_wins ?? prediction.prob_a_wins)
+
+  // Injury shrinkage: P_adj = 0.7 × P_model + 0.3 × 0.5 applied to each injured player
+  let adjProb = $derived.by(() => {
+    let p = baseProb
+    if (injuredA) p = 0.7 * p + 0.3 * 0.5
+    if (injuredB) {
+      const adjB = 0.7 * (1 - p) + 0.3 * 0.5
+      p = 1 - adjB
+    }
+    return p
+  })
+
+  // Display percentages (injury-adjusted)
+  let dispPctA = $derived(Math.round(adjProb * 1000) / 10)
+  let dispPctB = $derived(Math.round((1 - adjProb) * 1000) / 10)
+
+  // ── Kelly (re-runs when odds or injury flags change) ──────────────────────
+  async function recalcKelly() {
     if (!odds || odds <= 1) {
       kellyResult = null
       error = null
       return
     }
-
     loading = true
     error = null
-
     try {
       const result = await invoke<KellyResult>('calculate_kelly', {
         request: {
-          model_prob: prediction.ml_prob_a_wins ?? prediction.prob_a_wins,
+          model_prob: adjProb,
           decimal_odds: odds,
           bankroll: $bankroll,
           kelly_fraction: $kelly_fraction,
@@ -58,18 +89,41 @@
   }
 
   $effect(() => {
-    if (odds) {
-      onOddsChange()
+    const _adj = adjProb  // track injury-adjusted prob so effect re-runs on toggle
+    if (odds && odds > 1) {
+      recalcKelly()
+    } else {
+      kellyResult = null
+      error = null
     }
   })
 
+  // ── News / injury check ───────────────────────────────────────────────────
+  async function checkNews() {
+    newsLoading = true
+    newsError = null
+    newsResult = null
+    try {
+      const result = await invoke<{ injury_flag: boolean; summary: string }>('check_player_news', {
+        playerA: prediction.player_a,
+        playerB: prediction.player_b,
+        provider: $llmProvider,
+        apiKey: $llmApiKey,
+      })
+      newsResult = result
+    } catch (e) {
+      newsError = String(e)
+    } finally {
+      newsLoading = false
+    }
+  }
+
+  // ── Log bet ───────────────────────────────────────────────────────────────
   async function logBet() {
     if (!odds || !kellyResult) return
     logBetLoading = true
     logBetError = null
-    const betProb = betOnA
-      ? (prediction.ml_prob_a_wins ?? prediction.prob_a_wins)
-      : 1 - (prediction.ml_prob_a_wins ?? prediction.prob_a_wins)
+    const betProb = betOnA ? adjProb : 1 - adjProb
     const record: BetRecord = {
       id: crypto.randomUUID(),
       date: new Date().toISOString().slice(0, 10),
@@ -93,48 +147,72 @@
   }
 </script>
 
-<div class="p-6 border-b border-gray-100 hover:bg-gray-50">
+<div
+  class="p-6 border-b hover:bg-gray-50"
+  class:border-yellow-300={anyInjury}
+  class:bg-yellow-50={anyInjury}
+  class:border-gray-100={!anyInjury}
+>
   <div class="mb-2 text-sm font-semibold text-gray-700">
     {prediction.player_a} vs {prediction.player_b}
   </div>
   <div class="text-xs text-gray-500 mb-4">{prediction.surface}</div>
 
   <div class="space-y-3">
+    <!-- Player A -->
     <div>
       <div class="flex justify-between items-center mb-1">
-        <span class="text-sm font-medium">{prediction.player_a}</span>
+        <div class="flex items-center gap-1">
+          <span class="text-sm font-medium">{prediction.player_a}</span>
+          <button
+            onclick={() => (injuredA = !injuredA)}
+            title={injuredA ? 'Remove injury flag' : 'Flag as injured (shrinks prob toward 50%)'}
+            class="text-base leading-none opacity-50 hover:opacity-100 transition-opacity"
+            class:opacity-100={injuredA}
+          >🩹</button>
+        </div>
         <span class="text-sm font-bold text-blue-600">
-          {mlProbA ?? probA}%
+          {dispPctA}%{anyInjury && injuredA ? ' *' : ''}
         </span>
       </div>
       <div class="h-6 bg-gray-200 rounded-sm overflow-hidden">
-        <div
-          class="h-full bg-blue-500"
-          style="width: {mlProbA ?? probA}%"
-        />
+        <div class="h-full bg-blue-500" style="width: {dispPctA}%" />
       </div>
     </div>
 
+    <!-- Player B -->
     <div>
       <div class="flex justify-between items-center mb-1">
-        <span class="text-sm font-medium">{prediction.player_b}</span>
+        <div class="flex items-center gap-1">
+          <span class="text-sm font-medium">{prediction.player_b}</span>
+          <button
+            onclick={() => (injuredB = !injuredB)}
+            title={injuredB ? 'Remove injury flag' : 'Flag as injured (shrinks prob toward 50%)'}
+            class="text-base leading-none opacity-50 hover:opacity-100 transition-opacity"
+            class:opacity-100={injuredB}
+          >🩹</button>
+        </div>
         <span class="text-sm font-bold text-red-600">
-          {mlProbA != null ? Math.round((100 - mlProbA) * 10) / 10 : probB}%
+          {dispPctB}%{anyInjury && injuredB ? ' *' : ''}
         </span>
       </div>
       <div class="h-6 bg-gray-200 rounded-sm overflow-hidden">
-        <div
-          class="h-full bg-red-500"
-          style="width: {mlProbA != null ? 100 - mlProbA : probB}%"
-        />
+        <div class="h-full bg-red-500" style="width: {dispPctB}%" />
       </div>
     </div>
   </div>
 
+  {#if anyInjury}
+    <div class="mt-2 text-xs text-yellow-700 bg-yellow-100 rounded px-2 py-1">
+      Injury adjustment active — probabilities shrunk 30% toward 50/50
+    </div>
+  {/if}
+
+  <!-- ML model breakdown -->
   {#if mlProbA != null}
     <div class="mt-3">
       <button
-        onclick={() => showBreakdown = !showBreakdown}
+        onclick={() => (showBreakdown = !showBreakdown)}
         class="text-xs text-purple-600 hover:text-purple-800 underline"
       >
         {showBreakdown ? 'Hide' : 'Show'} model breakdown
@@ -172,6 +250,39 @@
     </div>
   {/if}
 
+  <!-- News / injury check -->
+  <div class="mt-3">
+    {#if $llmApiKey}
+      <button
+        onclick={checkNews}
+        disabled={newsLoading}
+        class="text-xs text-gray-500 hover:text-gray-700 underline disabled:opacity-50"
+      >
+        {newsLoading ? 'Checking news…' : 'Check news & injuries'}
+      </button>
+    {/if}
+
+    {#if newsError}
+      <div class="mt-1 text-xs text-red-600">{newsError}</div>
+    {/if}
+
+    {#if newsResult}
+      <div
+        class="mt-2 p-2 rounded text-xs"
+        class:bg-red-50={newsResult.injury_flag}
+        class:border={newsResult.injury_flag}
+        class:border-red-300={newsResult.injury_flag}
+        class:bg-gray-50={!newsResult.injury_flag}
+      >
+        {#if newsResult.injury_flag}
+          <span class="font-semibold text-red-700">⚠ Injury concern: </span>
+        {/if}
+        <span class="text-gray-700">{newsResult.summary}</span>
+      </div>
+    {/if}
+  </div>
+
+  <!-- Odds input -->
   <div class="mt-4 p-4 bg-gray-50 rounded">
     <label class="text-xs font-semibold text-gray-600 block mb-2">
       Bookmaker Odds (decimal)
@@ -201,7 +312,7 @@
         class:text-green-700={kellyResult.edge > 0}
         class:text-red-700={kellyResult.edge < 0}
       >
-        <span>Edge:</span>
+        <span>Edge{anyInjury ? ' (adj)' : ''}:</span>
         <span class="font-semibold">
           {kellyResult.edge > 0 ? '+' : ''}{Math.round(kellyResult.edge * 1000) / 10}%
         </span>
@@ -248,6 +359,9 @@
           <span>Stake: <strong>${Math.round(kellyResult.stake * 100) / 100}</strong></span>
           <span>Odds: <strong>{odds}</strong></span>
         </div>
+        {#if anyInjury}
+          <div class="text-yellow-700 text-xs">Using injury-adjusted probability</div>
+        {/if}
         {#if logBetError}
           <div class="text-red-600">{logBetError}</div>
         {/if}

@@ -233,6 +233,38 @@ pub async fn parse_with_llm(
     }
 }
 
+#[cfg(not(test))]
+#[tauri::command]
+pub async fn trigger_retrain() -> Result<String, String> {
+    // Walk up from current_dir to find the directory containing justfile (workspace root).
+    let mut dir = std::env::current_dir().map_err(|e| e.to_string())?;
+    let workspace = loop {
+        if dir.join("justfile").exists() {
+            break dir.clone();
+        }
+        match dir.parent() {
+            Some(p) => dir = p.to_path_buf(),
+            None => return Err("Cannot find workspace root (no justfile found in parent dirs)".into()),
+        }
+    };
+
+    let output = tokio::process::Command::new("just")
+        .arg("retrain")
+        .current_dir(&workspace)
+        .output()
+        .await
+        .map_err(|e| format!("Failed to run 'just retrain': {e}"))?;
+
+    if output.status.success() {
+        Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+    } else {
+        Err(format!(
+            "Retrain failed:\n{}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ))
+    }
+}
+
 pub(crate) fn normalize_player_id(name: &str) -> String {
     name.replace(' ', "_").to_lowercase()
 }

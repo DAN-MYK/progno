@@ -4,11 +4,29 @@
   import HistoryPanel from './lib/components/HistoryPanel.svelte'
   import SchedulePanel from './lib/components/SchedulePanel.svelte'
   import Footer from './lib/components/Footer.svelte'
+  import { invoke } from '@tauri-apps/api/core'
   import { predictions, error, bankroll, kelly_fraction, selectedTour, dataAsOf, mlAvailable } from './lib/stores'
 
   // localPersist in stores.ts handles bankroll/kelly_fraction/selectedTour persistence via localStorage
 
   let activeTab = $state<'predict' | 'history' | 'schedule'>('predict')
+
+  // Retrain from UI (§5.5)
+  let retrainLoading = $state(false)
+  let retrainMsg = $state<{ ok: boolean; text: string } | null>(null)
+
+  async function triggerRetrain() {
+    retrainLoading = true
+    retrainMsg = null
+    try {
+      const out = await invoke<string>('trigger_retrain')
+      retrainMsg = { ok: true, text: out || 'Retrain completed.' }
+    } catch (e) {
+      retrainMsg = { ok: false, text: String(e) }
+    } finally {
+      retrainLoading = false
+    }
+  }
 
   function isDataStale(dateStr: string): boolean {
     if (!dateStr || dateStr === 'unknown') return false
@@ -66,9 +84,35 @@
             <option value={1}>1.0×</option>
           </select>
         </label>
+        <button
+          onclick={triggerRetrain}
+          disabled={retrainLoading}
+          class="px-3 py-1 text-xs rounded border border-gray-300 text-gray-600 hover:bg-gray-100 disabled:opacity-50"
+          title="Re-run full training pipeline (just retrain)"
+        >
+          {retrainLoading ? 'Retraining…' : 'Retrain'}
+        </button>
       </div>
     </div>
   </header>
+
+  {#if retrainMsg}
+    <div
+      class="px-6 py-2 text-xs border-l-4"
+      class:bg-green-50={retrainMsg.ok}
+      class:border-green-400={retrainMsg.ok}
+      class:text-green-800={retrainMsg.ok}
+      class:bg-red-50={!retrainMsg.ok}
+      class:border-red-400={!retrainMsg.ok}
+      class:text-red-800={!retrainMsg.ok}
+    >
+      {retrainMsg.ok ? 'Retrain succeeded.' : 'Retrain failed:'} {retrainMsg.text}
+      <button
+        onclick={() => (retrainMsg = null)}
+        class="ml-2 underline opacity-70 hover:opacity-100"
+      >dismiss</button>
+    </div>
+  {/if}
 
   {#if $mlAvailable === false && $predictions.length > 0}
     <div class="bg-yellow-50 border-l-4 border-yellow-400 px-6 py-2 text-xs text-yellow-800">
