@@ -103,8 +103,23 @@ def join_odds(
         pair = tuple(sorted([row["winner_norm"], row["loser_norm"]]))
         odds_index[(row["date_week"], pair)] = int(i)
 
+    # Only iterate over matches that fall within the XLSX date range — skip
+    # pre-2013 and challenger-era rows that can never match (941k → ~35k).
+    if not odds_df.empty:
+        odds_min_date = odds_df["date_week"].min() - pd.Timedelta(days=_FUZZY_WINDOW_DAYS)
+        odds_max_date = odds_df["date_week"].max() + pd.Timedelta(days=_FUZZY_WINDOW_DAYS)
+        candidate_mask = (
+            (result["tourney_date"] >= odds_min_date)
+            & (result["tourney_date"] <= odds_max_date)
+            & result["winner_name"].notna()
+            & result["loser_name"].notna()
+        )
+    else:
+        candidate_mask = pd.Series(False, index=result.index)
+
     matched = 0
-    for sack_i, sack_row in result.iterrows():
+    for sack_i in result.index[candidate_mask]:
+        sack_row = result.loc[sack_i]
         tourney_week = _monday(sack_row["tourney_date"])
         w_norm = normalize_name(sack_row["winner_name"])
         l_norm = normalize_name(sack_row["loser_name"])

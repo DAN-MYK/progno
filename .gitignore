@@ -13,6 +13,8 @@ training/data/staging/
 # Artifacts — versioned on disk, not in git
 training/artifacts/v*/
 training/artifacts/current
+training/artifacts/atp/
+training/artifacts/wta/
 
 # IDE & Worktrees
 .idea/
