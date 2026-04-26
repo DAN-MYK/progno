@@ -8,6 +8,10 @@ import logging
 import subprocess
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from progno_train.config import Paths
 
 import pandas as pd
 
@@ -252,7 +256,21 @@ def run_validate(paths: Paths) -> int:
     except ValueError as e:
         log.error("acceptance gate: FAIL — %s", e)
         return 1
+
+    # Generate report.md alongside the model artifacts (§6.6)
+    try:
+        from progno_train.report import generate_report
+        report_path = generate_report(paths, tour=_infer_tour(paths))
+        log.info("report written to %s", report_path)
+    except Exception as exc:
+        log.warning("report generation skipped: %s", exc)
+
     return 0
+
+
+def _infer_tour(paths: "Paths") -> str:
+    """Derive tour from the artifact dir name (atp / wta)."""
+    return paths.artifacts.name if paths.artifacts.name in ("atp", "wta") else "atp"
 
 
 def run_retrain(paths: Paths, tour: str, version: str) -> int:
@@ -306,12 +324,19 @@ def main() -> int:
     sub.add_parser("features")
     sub.add_parser("train")
     sub.add_parser("validate")
+    sub.add_parser("report")
     sub.add_parser("retrain").add_argument("--version", default="dev")
     sub.add_parser("publish").add_argument("version")
     args = parser.parse_args()
 
     root = Path(__file__).parent.parent.parent  # = training/
     paths = Paths.for_tour(root, args.tour)
+
+    def _run_report() -> int:
+        from progno_train.report import generate_report
+        p = generate_report(paths, tour=args.tour)
+        log.info("report written to %s", p)
+        return 0
 
     dispatch = {
         "update_data": lambda: run_update_data(paths),
@@ -320,6 +345,7 @@ def main() -> int:
         "features": lambda: run_features(paths, args.tour),
         "train": lambda: run_train(paths, args.tour),
         "validate": lambda: run_validate(paths),
+        "report": _run_report,
         "retrain": lambda: run_retrain(paths, args.tour, getattr(args, "version", "dev")),
         "publish": lambda: run_publish(paths, getattr(args, "version", "dev")),
     }

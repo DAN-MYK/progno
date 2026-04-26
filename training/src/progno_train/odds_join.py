@@ -103,8 +103,11 @@ def join_odds(
         pair = tuple(sorted([row["winner_norm"], row["loser_norm"]]))
         odds_index[(row["date_week"], pair)] = int(i)
 
-    # Only iterate over matches that fall within the XLSX date range — skip
-    # pre-2013 and challenger-era rows that can never match (941k → ~35k).
+    # Only iterate over matches that can possibly appear in tennis-data.co.uk XLSX:
+    #   • within the XLSX date range (2013+)
+    #   • main-tour levels only (G/F/M/A/D) — challengers and quals are never in XLSX
+    # This cuts 941k rows → ~40k, keeping the loop fast.
+    _XLSX_LEVELS = {"G", "F", "M", "A", "D"}
     if not odds_df.empty:
         odds_min_date = odds_df["date_week"].min() - pd.Timedelta(days=_FUZZY_WINDOW_DAYS)
         odds_max_date = odds_df["date_week"].max() + pd.Timedelta(days=_FUZZY_WINDOW_DAYS)
@@ -114,6 +117,8 @@ def join_odds(
             & result["winner_name"].notna()
             & result["loser_name"].notna()
         )
+        if "tourney_level" in result.columns:
+            candidate_mask &= result["tourney_level"].isin(_XLSX_LEVELS)
     else:
         candidate_mask = pd.Series(False, index=result.index)
 

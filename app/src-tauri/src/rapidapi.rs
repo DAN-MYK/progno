@@ -563,8 +563,8 @@ mod tests {
         let t = chrono_day_start("2026-04-25").unwrap();
         assert!(t > 0);
         // Any 2026-04-25 event timestamp should fall in [t, t+86400)
-        // approximate: 2026-04-25 00:00 UTC ≈ 1745539200
-        assert!((t - 1745539200).abs() < 86400);
+        // 2026-04-25 00:00 UTC = 1777075200
+        assert!((t - 1777075200).abs() < 86400);
     }
 
     #[test]

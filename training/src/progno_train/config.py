@@ -71,3 +71,7 @@ class Paths:
     @property
     def name_map(self) -> Path:
         return self.data_raw.parent / "manual" / "name_map.csv"
+
+    @property
+    def report(self) -> Path:
+        return self.artifacts / "report.md"

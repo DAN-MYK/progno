@@ -53,6 +53,29 @@
       .sort((a, b) => b.n - a.n)
   })
 
+  let monthStats = $derived.by(() => {
+    const map = new Map<string, { pnl: number; stake: number; n: number; clvSum: number }>()
+    for (const b of $bets) {
+      if (!b.result || b.result === 'void') continue
+      const month = b.date.slice(0, 7) // YYYY-MM
+      const cur = map.get(month) ?? { pnl: 0, stake: 0, n: 0, clvSum: 0 }
+      cur.pnl += b.pnl ?? 0
+      cur.stake += b.stake
+      cur.n++
+      cur.clvSum += betClv(b)
+      map.set(month, cur)
+    }
+    return [...map.entries()]
+      .map(([month, d]) => ({
+        month,
+        roi: d.stake > 0 ? (d.pnl / d.stake) * 100 : 0,
+        pnl: d.pnl,
+        n: d.n,
+        meanClv: d.n > 0 ? (d.clvSum / d.n) * 100 : 0,
+      }))
+      .sort((a, b) => a.month.localeCompare(b.month))
+  })
+
   async function setResult(id: string, result: 'win' | 'loss' | 'void') {
     try {
       await invoke('update_bet_result', { id, result })
@@ -245,5 +268,45 @@
         </div>
       {/each}
     </div>
+  </div>
+{/if}
+
+{#if monthStats.length > 0}
+  <div class="p-4 border-t border-gray-100 overflow-x-auto">
+    <h3 class="text-xs font-semibold text-gray-600 mb-2">CLV by Month</h3>
+    <table class="w-full text-xs">
+      <thead>
+        <tr class="text-left text-gray-500 border-b border-gray-200">
+          <th class="pb-1 pr-4 font-medium">Month</th>
+          <th class="pb-1 pr-4 font-medium text-right">Bets</th>
+          <th class="pb-1 pr-4 font-medium text-right">P&L</th>
+          <th class="pb-1 pr-4 font-medium text-right">ROI%</th>
+          <th class="pb-1 font-medium text-right">Avg Edge</th>
+        </tr>
+      </thead>
+      <tbody>
+        {#each monthStats as m}
+          <tr class="border-b border-gray-50 hover:bg-gray-50">
+            <td class="py-1 pr-4 text-gray-600">{m.month}</td>
+            <td class="py-1 pr-4 text-right">{m.n}</td>
+            <td
+              class="py-1 pr-4 text-right font-medium"
+              class:text-green-700={m.pnl >= 0}
+              class:text-red-700={m.pnl < 0}
+            >{fmt(m.pnl)}</td>
+            <td
+              class="py-1 pr-4 text-right font-medium"
+              class:text-green-700={m.roi >= 0}
+              class:text-red-700={m.roi < 0}
+            >{m.roi >= 0 ? '+' : ''}{m.roi.toFixed(1)}%</td>
+            <td
+              class="py-1 text-right font-medium"
+              class:text-green-700={m.meanClv >= 0}
+              class:text-red-700={m.meanClv < 0}
+            >{m.meanClv >= 0 ? '+' : ''}{m.meanClv.toFixed(1)}%</td>
+          </tr>
+        {/each}
+      </tbody>
+    </table>
   </div>
 {/if}

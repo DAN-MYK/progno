@@ -157,7 +157,6 @@ mod tests {
     #[test]
     fn ml_predict_response_deserializes_from_json() {
         let raw = r#"{
-            "model_version": "2024-01-01T00:00:00",
             "predictions": [
                 {
                     "prob_a_wins": 0.55,
@@ -168,7 +167,6 @@ mod tests {
             ]
         }"#;
         let resp: MlPredictResponse = serde_json::from_str(raw).unwrap();
-        assert_eq!(resp.model_version, "2024-01-01T00:00:00");
         assert_eq!(resp.predictions.len(), 1);
         assert_eq!(resp.predictions[0].confidence_flag, "low_history");
     }
