@@ -22,13 +22,35 @@
         : $bets.filter(b => b.result === filterResult)
   )
 
+  function betClv(b: BetRecord): number {
+    return b.our_prob - 1 / b.odds
+  }
+
   let stats = $derived.by(() => {
     const settled = $bets.filter(b => b.result && b.result !== 'void')
     const wins = settled.filter(b => b.result === 'win').length
     const totalPnl = $bets.reduce((s, b) => s + (b.pnl ?? 0), 0)
     const totalStake = settled.reduce((s, b) => s + b.stake, 0)
     const roi = totalStake > 0 ? (totalPnl / totalStake) * 100 : 0
-    return { total: $bets.length, settled: settled.length, wins, totalPnl, roi }
+    const clvSum = $bets.reduce((s, b) => s + betClv(b), 0)
+    const meanClv = $bets.length > 0 ? (clvSum / $bets.length) * 100 : 0
+    return { total: $bets.length, settled: settled.length, wins, totalPnl, roi, meanClv }
+  })
+
+  let surfaceStats = $derived.by(() => {
+    const map = new Map<string, { pnl: number; stake: number; n: number }>()
+    for (const b of $bets) {
+      if (!b.result || b.result === 'void') continue
+      const s = b.surface || 'Unknown'
+      const cur = map.get(s) ?? { pnl: 0, stake: 0, n: 0 }
+      cur.pnl += b.pnl ?? 0
+      cur.stake += b.stake
+      cur.n++
+      map.set(s, cur)
+    }
+    return [...map.entries()]
+      .map(([surface, d]) => ({ surface, roi: d.stake > 0 ? (d.pnl / d.stake) * 100 : 0, pnl: d.pnl, n: d.n }))
+      .sort((a, b) => b.n - a.n)
   })
 
   async function setResult(id: string, result: 'win' | 'loss' | 'void') {
@@ -83,6 +105,14 @@
       >
         ROI: {s.roi.toFixed(1)}%
       </span>
+      <span
+        class="font-semibold"
+        title="Mean edge (our prob − implied prob) at bet time"
+        class:text-green-700={s.meanClv >= 0}
+        class:text-red-700={s.meanClv < 0}
+      >
+        Edge: {s.meanClv >= 0 ? '+' : ''}{s.meanClv.toFixed(1)}%
+      </span>
     </div>
   {/if}
 
@@ -116,6 +146,7 @@
           <th class="px-4 py-2 text-left font-medium text-gray-600">Match</th>
           <th class="px-4 py-2 text-left font-medium text-gray-600">Bet on</th>
           <th class="px-4 py-2 text-right font-medium text-gray-600">Our %</th>
+          <th class="px-4 py-2 text-right font-medium text-gray-600">Edge</th>
           <th class="px-4 py-2 text-right font-medium text-gray-600">Odds</th>
           <th class="px-4 py-2 text-right font-medium text-gray-600">Stake</th>
           <th class="px-4 py-2 text-center font-medium text-gray-600">Result</th>
@@ -135,6 +166,13 @@
               {bet.bet_on === 'a' ? bet.player_a : bet.player_b}
             </td>
             <td class="px-4 py-2 text-right">{Math.round(bet.our_prob * 1000) / 10}%</td>
+            <td
+              class="px-4 py-2 text-right font-medium"
+              class:text-green-700={betClv(bet) >= 0}
+              class:text-red-700={betClv(bet) < 0}
+            >
+              {betClv(bet) >= 0 ? '+' : ''}{Math.round(betClv(bet) * 1000) / 10}%
+            </td>
             <td class="px-4 py-2 text-right">{bet.odds.toFixed(2)}</td>
             <td class="px-4 py-2 text-right">${bet.stake.toFixed(2)}</td>
             <td class="px-4 py-2 text-center">
@@ -186,5 +224,26 @@
         {/each}
       </tbody>
     </table>
+  </div>
+{/if}
+
+{#if surfaceStats.length > 0}
+  <div class="p-4 border-t border-gray-100">
+    <h3 class="text-xs font-semibold text-gray-600 mb-2">ROI by Surface</h3>
+    <div class="flex gap-4 flex-wrap">
+      {#each surfaceStats as s}
+        <div class="text-xs bg-gray-50 rounded px-3 py-2 border border-gray-200">
+          <div class="font-medium text-gray-700">{s.surface}</div>
+          <div class="text-gray-500">{s.n} bets</div>
+          <div
+            class="font-semibold"
+            class:text-green-700={s.roi >= 0}
+            class:text-red-700={s.roi < 0}
+          >
+            {s.roi >= 0 ? '+' : ''}{s.roi.toFixed(1)}%
+          </div>
+        </div>
+      {/each}
+    </div>
   </div>
 {/if}

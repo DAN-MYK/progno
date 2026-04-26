@@ -1,6 +1,6 @@
 <script lang="ts">
-  import type { Prediction, KellyResult } from '../stores'
-  import { bankroll, kelly_fraction } from '../stores'
+  import type { Prediction, KellyResult, BetRecord } from '../stores'
+  import { bankroll, kelly_fraction, bets } from '../stores'
   import { invoke } from '@tauri-apps/api/core'
 
   let { prediction }: { prediction: Prediction } = $props()
@@ -10,6 +10,10 @@
   let loading = $state(false)
   let error = $state<string | null>(null)
   let showBreakdown = $state(false)
+  let showLogBet = $state(false)
+  let betOnA = $state(true)
+  let logBetError = $state<string | null>(null)
+  let logBetLoading = $state(false)
 
   let probA = $derived(Math.round(prediction.prob_a_wins * 1000) / 10)
   let probB = $derived(Math.round(prediction.prob_b_wins * 1000) / 10)
@@ -58,6 +62,35 @@
       onOddsChange()
     }
   })
+
+  async function logBet() {
+    if (!odds || !kellyResult) return
+    logBetLoading = true
+    logBetError = null
+    const betProb = betOnA
+      ? (prediction.ml_prob_a_wins ?? prediction.prob_a_wins)
+      : 1 - (prediction.ml_prob_a_wins ?? prediction.prob_a_wins)
+    const record: BetRecord = {
+      id: crypto.randomUUID(),
+      date: new Date().toISOString().slice(0, 10),
+      player_a: prediction.player_a,
+      player_b: prediction.player_b,
+      surface: prediction.surface,
+      bet_on: betOnA ? 'a' : 'b',
+      our_prob: betProb,
+      odds,
+      stake: kellyResult.stake,
+    }
+    try {
+      await invoke('add_bet', { record })
+      bets.update(prev => [...prev, record])
+      showLogBet = false
+    } catch (e) {
+      logBetError = String(e)
+    } finally {
+      logBetLoading = false
+    }
+  }
 </script>
 
 <div class="p-6 border-b border-gray-100 hover:bg-gray-50">
@@ -184,6 +217,57 @@
         </span>
       </div>
     </div>
+  {/if}
+
+  {#if kellyResult && kellyResult.stake > 0}
+    {#if !showLogBet}
+      <button
+        onclick={() => { showLogBet = true; betOnA = true }}
+        class="mt-3 w-full py-1.5 text-xs bg-green-600 text-white rounded hover:bg-green-700"
+      >
+        Log bet
+      </button>
+    {:else}
+      <div class="mt-3 p-3 border border-green-300 rounded bg-green-50 text-xs space-y-2">
+        <div class="font-semibold text-green-800">Log this bet</div>
+        <div class="flex gap-2">
+          <button
+            onclick={() => (betOnA = true)}
+            class="flex-1 py-1 rounded border {betOnA ? 'bg-green-600 text-white border-green-600' : 'border-gray-300 text-gray-600'}"
+          >
+            {prediction.player_a}
+          </button>
+          <button
+            onclick={() => (betOnA = false)}
+            class="flex-1 py-1 rounded border {!betOnA ? 'bg-green-600 text-white border-green-600' : 'border-gray-300 text-gray-600'}"
+          >
+            {prediction.player_b}
+          </button>
+        </div>
+        <div class="flex justify-between text-gray-600">
+          <span>Stake: <strong>${Math.round(kellyResult.stake * 100) / 100}</strong></span>
+          <span>Odds: <strong>{odds}</strong></span>
+        </div>
+        {#if logBetError}
+          <div class="text-red-600">{logBetError}</div>
+        {/if}
+        <div class="flex gap-2">
+          <button
+            onclick={logBet}
+            disabled={logBetLoading}
+            class="flex-1 py-1 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+          >
+            {logBetLoading ? 'Saving…' : 'Confirm'}
+          </button>
+          <button
+            onclick={() => (showLogBet = false)}
+            class="px-3 py-1 border border-gray-300 text-gray-600 rounded hover:bg-gray-100"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    {/if}
   {/if}
 
   <div class="text-xs text-gray-500 mt-4">
