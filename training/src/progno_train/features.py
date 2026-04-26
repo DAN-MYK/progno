@@ -463,6 +463,9 @@ def _build_feature_row(
     return feats
 
 
+_CHUNK_SIZE = 100_000  # flush Python dicts → DataFrame every N rows to bound memory
+
+
 def build_all_features(
     history: pd.DataFrame,
     elo_state: dict,
@@ -478,7 +481,8 @@ def build_all_features(
     player_index = _build_player_index(history)
     h2h_index = _build_h2h_index(history)
     _empty: pd.DataFrame = pd.DataFrame()
-    rows = []
+    rows: list[dict] = []
+    chunks: list[pd.DataFrame] = []
 
     complete = history[history["is_complete"]]
     if min_year > 0:
@@ -512,4 +516,11 @@ def build_all_features(
         if len(rows) % 20000 == 0:
             log.info("build_all_features: %d rows processed...", len(rows))
 
-    return pd.DataFrame(rows)
+        if len(rows) >= _CHUNK_SIZE:
+            chunks.append(pd.DataFrame(rows))
+            rows = []
+
+    if rows:
+        chunks.append(pd.DataFrame(rows))
+
+    return pd.concat(chunks, ignore_index=True) if chunks else pd.DataFrame()

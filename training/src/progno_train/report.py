@@ -43,7 +43,7 @@ def generate_report(paths: "Paths", tour: str = "atp") -> Path:
     ]:
         if key in metrics:
             val = metrics[key]
-            lines.append(f"| {label} | {val:.4f if isinstance(val, float) else val} |")
+            lines.append(f"| {label} | {f'{val:.4f}' if isinstance(val, float) else val} |")
     lines.append("")
 
     # ── Delta vs previous published version ───────────────────────────────────
