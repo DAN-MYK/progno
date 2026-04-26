@@ -47,6 +47,20 @@ def test_normalize_name_lowercase():
     assert normalize_name("NOVAK DJOKOVIC") == "djokovic n"
 
 
+def test_normalize_name_xlsx_format():
+    """tennis-data.co.uk 'Surname Initial.' format → same result as Sackmann format."""
+    assert normalize_name("Alcaraz C.") == "alcaraz c"
+    assert normalize_name("Medvedev D.") == "medvedev d"
+    assert normalize_name("Auger-Aliassime F.") == "auger-aliassime f"
+
+
+def test_normalize_name_xlsx_matches_sackmann():
+    """XLSX and Sackmann representations of the same player normalize identically."""
+    assert normalize_name("Alcaraz C.") == normalize_name("Carlos Alcaraz")
+    assert normalize_name("Medvedev D.") == normalize_name("Daniil Medvedev")
+    assert normalize_name("Djokovic N.") == normalize_name("Novak Djokovic")
+
+
 # ── join_odds tests ──────────────────────────────────────────────────────────
 
 def test_exact_join(tmp_path):

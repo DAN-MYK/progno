@@ -31,7 +31,7 @@
 - Modify: `training/src/progno_train/elo.py`
 - Test: `training/tests/test_elo.py`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Add to the bottom of `training/tests/test_elo.py`:
 
@@ -76,7 +76,7 @@ def test_welo_total_mass_not_conserved() -> None:
     assert nw_30 - 1500 > nw_32 - 1500  # dominant win → larger rating jump
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 ```bash
 cd /home/mykhailo_dan/apps/progno/training
@@ -85,7 +85,7 @@ uv run pytest tests/test_elo.py::test_welo_mov_multiplier_values tests/test_elo.
 
 Expected: `ImportError` or `FAILED` with "cannot import name 'mov_multiplier'".
 
-- [ ] **Step 3: Implement `mov_multiplier` and `apply_welo_update` in `elo.py`**
+- [x] **Step 3: Implement `mov_multiplier` and `apply_welo_update` in `elo.py`**
 
 Append to the end of `training/src/progno_train/elo.py`:
 
@@ -116,7 +116,7 @@ def apply_welo_update(
     return winner_rating + delta, loser_rating - delta
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 ```bash
 cd /home/mykhailo_dan/apps/progno/training
@@ -125,7 +125,7 @@ uv run pytest tests/test_elo.py -v 2>&1 | tail -20
 
 Expected: All tests PASS (including the 4 new ones).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd /home/mykhailo_dan/apps/progno
@@ -140,7 +140,7 @@ git commit -m "feat(elo): add mov_multiplier and apply_welo_update for WElo"
 **Files:**
 - Modify: `training/src/progno_train/rollup.py`
 
-- [ ] **Step 1: Extend `PlayerElo` dataclass with `welo_*` fields**
+- [x] **Step 1: Extend `PlayerElo` dataclass with `welo_*` fields**
 
 In `training/src/progno_train/rollup.py`, replace the `PlayerElo` dataclass (lines 19-29):
 
@@ -162,7 +162,7 @@ class PlayerElo:
     matches_played_grass: int = 0
 ```
 
-- [ ] **Step 2: Update the import in `rollup.py`**
+- [x] **Step 2: Update the import in `rollup.py`**
 
 Change the import at the top (lines 9-14) to also import `apply_welo_update`:
 
@@ -176,7 +176,7 @@ from progno_train.elo import (
 )
 ```
 
-- [ ] **Step 3: Add `_update_welo_surface` helper after `_update_surface`**
+- [x] **Step 3: Add `_update_welo_surface` helper after `_update_surface`**
 
 After the `_update_surface` function (around line 57), add:
 
@@ -203,7 +203,7 @@ def _update_welo_surface(
     setattr(loser, attr, new_l)
 ```
 
-- [ ] **Step 4: Call WElo update inside `rollup_elo` loop**
+- [x] **Step 4: Call WElo update inside `rollup_elo` loop**
 
 In `rollup_elo`, after the existing surface update call (the line `_update_surface(winner, loser, row.surface, k_with_context=k)`), add:
 
@@ -251,7 +251,7 @@ The full updated `rollup_elo` loop body (replace the section from `for row in df
     return state
 ```
 
-- [ ] **Step 5: Run existing rollup tests to verify no regressions**
+- [x] **Step 5: Run existing rollup tests to verify no regressions**
 
 ```bash
 cd /home/mykhailo_dan/apps/progno/training
@@ -260,7 +260,7 @@ uv run pytest tests/test_rollup.py tests/test_artifacts.py -v 2>&1 | tail -25
 
 Expected: All PASS. The existing `_mk_match` helper doesn't include `w_sets`/`l_sets` so `getattr(row, "w_sets", 0)` returns 0, `mov_multiplier(0, 0)=1.0`, and WElo behaves like standard Elo for those tests.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 cd /home/mykhailo_dan/apps/progno
@@ -276,7 +276,7 @@ git commit -m "feat(rollup): add WElo fields to PlayerElo and compute WElo in ro
 - Modify: `training/src/progno_train/ingest.py`
 - Test: `training/tests/test_ingest.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to `training/tests/test_ingest.py`:
 
@@ -293,7 +293,7 @@ def test_ingest_extracts_set_counts() -> None:
 
 Also check what the fixture has for match_num=1. The fixture at `tests/fixtures/mini_atp_matches.csv` has score "6-4 6-3" for match_num=1 — confirmed by `test_ingest_flags_completed_matches`.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 ```bash
 cd /home/mykhailo_dan/apps/progno/training
@@ -302,7 +302,7 @@ uv run pytest tests/test_ingest.py::test_ingest_extracts_set_counts -v 2>&1 | ta
 
 Expected: FAILED — `KeyError: 'w_sets'` or `AssertionError`.
 
-- [ ] **Step 3: Add `w_sets` and `l_sets` to `ingest_sackmann_csv`**
+- [x] **Step 3: Add `w_sets` and `l_sets` to `ingest_sackmann_csv`**
 
 `score.py`'s `parse_score` already returns `ParsedScore.winner_set_count` and `ParsedScore.loser_set_count`. Use them.
 
@@ -318,7 +318,7 @@ In `training/src/progno_train/ingest.py`, after the existing lines that extract 
 
 (The existing lines for `is_complete` and `completed_sets` are already there — just add the two new lines immediately after them.)
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 ```bash
 cd /home/mykhailo_dan/apps/progno/training
@@ -327,7 +327,7 @@ uv run pytest tests/test_ingest.py -v 2>&1 | tail -15
 
 Expected: All PASS including the new test.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd /home/mykhailo_dan/apps/progno
@@ -344,7 +344,7 @@ git commit -m "feat(ingest): extract w_sets/l_sets from parsed score for WElo ro
 - Modify: `sidecar/features.py` (same changes, applied identically)
 - Test: `training/tests/test_features.py`
 
-- [ ] **Step 1: Write the 4 failing tests**
+- [x] **Step 1: Write the 4 failing tests**
 
 Add to `training/tests/test_features.py`:
 
@@ -417,7 +417,7 @@ def test_new_features_no_future_leakage() -> None:
     assert all(frame_before["tourney_date"] < cutoff)
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 ```bash
 cd /home/mykhailo_dan/apps/progno/training
@@ -426,7 +426,7 @@ uv run pytest tests/test_features.py::test_second_won_pct_correct_formula tests/
 
 Expected: `ImportError` — `_rolling_serve_stats` not yet defined.
 
-- [ ] **Step 3: Add population median constants and `_rolling_serve_stats` to `training/src/progno_train/features.py`**
+- [x] **Step 3: Add population median constants and `_rolling_serve_stats` to `training/src/progno_train/features.py`**
 
 At the top of `features.py` (after the existing constants `POPULATION_WIN_RATE` and `LOW_HISTORY_THRESHOLD`), add:
 
@@ -495,7 +495,7 @@ def _rolling_serve_stats(
     }
 ```
 
-- [ ] **Step 4: Add WElo diff and new rolling stat diffs to `compute_match_features`**
+- [x] **Step 4: Add WElo diff and new rolling stat diffs to `compute_match_features`**
 
 In `compute_match_features` in `training/src/progno_train/features.py`, after the existing `elo_surface_diff` line, add the WElo diff features and new rolling stats. Replace this block:
 
@@ -539,7 +539,7 @@ With:
 
 Note: `_elo` is a nested function defined inside `compute_match_features` and already handles missing keys with default 1500. For `matches_played_{surf_key}`, the default 1500 is wrong (it should be 0), but since `1500 >= 20`, the composite logic will compute (and both `welo_surf` and `welo_ovrl` default to 1500, so `_welo_surf` returns 0.5*1500+0.5*1500=1500). This is safe — if the key isn't found, WElo surface falls back gracefully.
 
-- [ ] **Step 5: Apply identical changes to `sidecar/features.py`**
+- [x] **Step 5: Apply identical changes to `sidecar/features.py`**
 
 The sidecar file is a copy of the training file. Apply the same three changes:
 1. Add the three population median constants after `LOW_HISTORY_THRESHOLD`
@@ -548,7 +548,7 @@ The sidecar file is a copy of the training file. Apply the same three changes:
 
 The exact text to insert is identical to steps 3 and 4 above.
 
-- [ ] **Step 6: Run tests to verify they pass**
+- [x] **Step 6: Run tests to verify they pass**
 
 ```bash
 cd /home/mykhailo_dan/apps/progno/training
@@ -557,7 +557,7 @@ uv run pytest tests/test_features.py -v 2>&1 | tail -30
 
 Expected: All PASS including the 4 new tests.
 
-- [ ] **Step 7: Run the full test suite**
+- [x] **Step 7: Run the full test suite**
 
 ```bash
 cd /home/mykhailo_dan/apps/progno/training
@@ -566,7 +566,7 @@ uv run pytest -v 2>&1 | tail -30
 
 Expected: All PASS. No regressions.
 
-- [ ] **Step 8: Verify `compute_match_features` now returns 35 features**
+- [x] **Step 8: Verify `compute_match_features` now returns 35 features**
 
 Run a quick sanity check:
 
@@ -605,7 +605,7 @@ print('Total feature keys:', len(feats))
 
 Expected: All 5 new keys are present with numeric values. `Total feature keys: 35` (or 35 including the 4 categorical/context keys `surface`, `tourney_level`, `round`, `best_of_5`).
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 cd /home/mykhailo_dan/apps/progno
@@ -619,7 +619,7 @@ git commit -m "feat(features): add _rolling_serve_stats and WElo diff features (
 
 This task runs the full pipeline to check the acceptance gate passes.
 
-- [ ] **Step 1: Re-run ingest to regenerate staging parquet with `w_sets`/`l_sets`**
+- [x] **Step 1: Re-run ingest to regenerate staging parquet with `w_sets`/`l_sets`**
 
 ```bash
 cd /home/mykhailo_dan/apps/progno
@@ -633,7 +633,7 @@ cd /home/mykhailo_dan/apps/progno/training
 uv run progno-train --tour atp ingest
 ```
 
-- [ ] **Step 2: Re-run Elo rollup to regenerate `elo_state.json` with `welo_*` fields**
+- [x] **Step 2: Re-run Elo rollup to regenerate `elo_state.json` with `welo_*` fields**
 
 ```bash
 cd /home/mykhailo_dan/apps/progno/training
