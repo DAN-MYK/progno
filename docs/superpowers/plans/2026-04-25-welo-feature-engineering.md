@@ -659,21 +659,21 @@ print(list(first.keys()))
 
 Expected: Keys include `welo_overall`, `welo_hard`, `welo_clay`, `welo_grass`.
 
-- [ ] **Step 3: Re-run feature engineering**
+- [x] **Step 3: Re-run feature engineering**
 
 ```bash
 cd /home/mykhailo_dan/apps/progno/training
 uv run progno-train --tour atp features
 ```
 
-- [ ] **Step 4: Re-run training**
+- [x] **Step 4: Re-run training**
 
 ```bash
 cd /home/mykhailo_dan/apps/progno/training
 uv run progno-train --tour atp train
 ```
 
-- [ ] **Step 5: Run acceptance gate**
+- [x] **Step 5: Run acceptance gate**
 
 ```bash
 cd /home/mykhailo_dan/apps/progno/training
@@ -682,7 +682,7 @@ uv run progno-train --tour atp validate
 
 Expected: `acceptance gate: PASS`. If it fails, log the metrics and compare with the pre-WElo baseline.
 
-- [ ] **Step 6: Check WElo feature importance**
+- [x] **Step 6: Check WElo feature importance**
 
 ```bash
 cd /home/mykhailo_dan/apps/progno/training
@@ -699,7 +699,7 @@ print('New rolling feats:', [f for f in feats if any(s in f for s in ['second_wo
 
 Expected: `welo_overall_diff` or `welo_surface_diff` present in feature names. Feature count = 35.
 
-- [ ] **Step 7: Final commit**
+- [x] **Step 7: Final commit**
 
 ```bash
 cd /home/mykhailo_dan/apps/progno
