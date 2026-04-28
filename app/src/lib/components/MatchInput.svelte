@@ -82,6 +82,8 @@
 
   <div class="flex flex-col gap-2">
     {#each rows as row, idx}
+      {@const suggsA = suggestions(row.playerA)}
+      {@const suggsB = suggestions(row.playerB)}
       <div class="flex items-center gap-2">
 
         <!-- Player A -->
@@ -95,9 +97,9 @@
             placeholder="Player A"
             class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
           />
-          {#if activeField?.rowIdx === idx && activeField?.field === 'a' && suggestions(row.playerA).length > 0}
+          {#if activeField?.rowIdx === idx && activeField?.field === 'a' && suggsA.length > 0}
             <ul class="absolute z-10 w-full bg-white border border-gray-200 rounded-md shadow-lg mt-1 max-h-48 overflow-y-auto">
-              {#each suggestions(row.playerA) as name}
+              {#each suggsA as name}
                 <li>
                   <button
                     class="w-full text-left px-3 py-1.5 text-sm hover:bg-blue-50"
@@ -122,9 +124,9 @@
             placeholder="Player B"
             class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
           />
-          {#if activeField?.rowIdx === idx && activeField?.field === 'b' && suggestions(row.playerB).length > 0}
+          {#if activeField?.rowIdx === idx && activeField?.field === 'b' && suggsB.length > 0}
             <ul class="absolute z-10 w-full bg-white border border-gray-200 rounded-md shadow-lg mt-1 max-h-48 overflow-y-auto">
-              {#each suggestions(row.playerB) as name}
+              {#each suggsB as name}
                 <li>
                   <button
                     class="w-full text-left px-3 py-1.5 text-sm hover:bg-blue-50"
@@ -141,9 +143,9 @@
           bind:value={row.surface}
           class="px-2 py-2 border border-gray-300 rounded-md text-sm"
         >
-          <option>Hard</option>
-          <option>Clay</option>
-          <option>Grass</option>
+          <option value="Hard">Hard</option>
+          <option value="Clay">Clay</option>
+          <option value="Grass">Grass</option>
         </select>
 
         <!-- Remove -->
