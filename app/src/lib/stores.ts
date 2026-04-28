@@ -90,6 +90,7 @@ export interface BetRecord {
   stake: number
   result?: 'win' | 'loss' | 'void'
   pnl?: number
+  closing_odds?: number
 }
 
 export const bets = writable<BetRecord[]>([])

@@ -17,6 +17,7 @@
   let betOnA = $state(true)
   let logBetError = $state<string | null>(null)
   let logBetLoading = $state(false)
+  let closingOdds = $state<number | null>(null)
 
   // ── Injury toggles ────────────────────────────────────────────────────────
   let injuredA = $state(false)
@@ -134,11 +135,13 @@
       our_prob: betProb,
       odds,
       stake: kellyResult.stake,
+      closing_odds: closingOdds ?? undefined,
     }
     try {
       await invoke('add_bet', { record })
       bets.update(prev => [...prev, record])
       showLogBet = false
+      closingOdds = null
     } catch (e) {
       logBetError = String(e)
     } finally {
@@ -359,6 +362,18 @@
           <span>Stake: <strong>${Math.round(kellyResult.stake * 100) / 100}</strong></span>
           <span>Odds: <strong>{odds}</strong></span>
         </div>
+        <div>
+          <label for="closing-odds" class="text-gray-600 block mb-1">Closing odds <span class="text-gray-400">(optional)</span></label>
+          <input
+            id="closing-odds"
+            type="number"
+            bind:value={closingOdds}
+            placeholder="e.g. 1.85"
+            min="1"
+            step="0.01"
+            class="w-full px-2 py-1 border border-gray-300 rounded text-xs"
+          />
+        </div>
         {#if anyInjury}
           <div class="text-yellow-700 text-xs">Using injury-adjusted probability</div>
         {/if}
@@ -374,7 +389,7 @@
             {logBetLoading ? 'Saving…' : 'Confirm'}
           </button>
           <button
-            onclick={() => (showLogBet = false)}
+            onclick={() => { showLogBet = false; closingOdds = null }}
             class="px-3 py-1 border border-gray-300 text-gray-600 rounded hover:bg-gray-100"
           >
             Cancel
