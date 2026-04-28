@@ -62,6 +62,7 @@
       })
       if (result.error) {
         error.set(result.error)
+        predictions.set([])
       } else {
         predictions.set(result.predictions)
         dataAsOf.set(result.data_as_of)
