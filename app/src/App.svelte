@@ -3,13 +3,12 @@
   import MatchCard from './lib/components/MatchCard.svelte'
   import HistoryPanel from './lib/components/HistoryPanel.svelte'
   import SchedulePanel from './lib/components/SchedulePanel.svelte'
+  import StatsPanel from './lib/components/StatsPanel.svelte'
   import Footer from './lib/components/Footer.svelte'
   import { invoke } from '@tauri-apps/api/core'
   import { predictions, error, bankroll, kelly_fraction, selectedTour, dataAsOf, mlAvailable } from './lib/stores'
 
-  // localPersist in stores.ts handles bankroll/kelly_fraction/selectedTour persistence via localStorage
-
-  let activeTab = $state<'predict' | 'history' | 'schedule'>('predict')
+  let activeTab = $state<'predict' | 'history' | 'schedule' | 'stats'>('predict')
 
   // Retrain from UI (§5.5)
   let retrainLoading = $state(false)
@@ -41,7 +40,7 @@
       <div class="flex items-center gap-6">
         <h1 class="text-xl font-bold">Progno</h1>
         <nav class="flex gap-1">
-          {#each (['predict', 'history', 'schedule'] as const) as tab}
+          {#each (['predict', 'history', 'stats', 'schedule'] as const) as tab}
             <button
               onclick={() => (activeTab = tab)}
               class="px-3 py-1.5 text-sm rounded {activeTab === tab
@@ -128,13 +127,11 @@
 
   {#if activeTab === 'predict'}
     <MatchInput />
-
     {#if $error}
       <div class="bg-red-50 border-l-4 border-red-500 p-4 m-4 text-red-700 text-sm">
         {$error}
       </div>
     {/if}
-
     <div class="flex-1">
       {#each $predictions as pred (pred.player_a + pred.player_b)}
         <MatchCard prediction={pred} />
@@ -143,6 +140,10 @@
   {:else if activeTab === 'history'}
     <div class="flex-1 overflow-auto">
       <HistoryPanel />
+    </div>
+  {:else if activeTab === 'stats'}
+    <div class="flex-1 overflow-auto">
+      <StatsPanel />
     </div>
   {:else}
     <div class="flex-1 overflow-auto">
