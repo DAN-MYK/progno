@@ -6,7 +6,13 @@
   import StatsPanel from './lib/components/StatsPanel.svelte'
   import Footer from './lib/components/Footer.svelte'
   import { invoke } from '@tauri-apps/api/core'
-  import { predictions, error, bankroll, kelly_fraction, selectedTour, dataAsOf, mlAvailable } from './lib/stores'
+  import { predictions, error, bankroll, kelly_fraction, selectedTour, dataAsOf, mlAvailable, bets, type BetRecord } from './lib/stores'
+
+  $effect(() => {
+    invoke<BetRecord[]>('get_bets')
+      .then(records => bets.set(records))
+      .catch(() => {})
+  })
 
   let activeTab = $state<'predict' | 'history' | 'schedule' | 'stats'>('predict')
 
