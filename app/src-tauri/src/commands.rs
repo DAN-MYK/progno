@@ -82,6 +82,19 @@ pub(crate) fn players_from_elo_state(state: &serde_json::Value) -> Vec<String> {
     entries.iter().map(|(key, _)| key_to_display_name(key)).collect()
 }
 
+#[cfg(not(test))]
+#[tauri::command]
+pub fn get_player_names(tour: String, app_state: tauri::State<AppState>) -> Vec<String> {
+    let elo_guard = match tour.as_str() {
+        "wta" => app_state.elo_wta.lock().unwrap(),
+        _ => app_state.elo_atp.lock().unwrap(),
+    };
+    match &*elo_guard {
+        None => vec![],
+        Some(state) => players_from_elo_state(state),
+    }
+}
+
 pub fn predict_text(text: &str, elo_state: &serde_json::Value) -> PredictResponse {
     let matches = match parse_match_text(text) {
         Ok(m) => m,

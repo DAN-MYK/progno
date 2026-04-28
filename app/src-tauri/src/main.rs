@@ -49,6 +49,7 @@ fn main() {
             commands::calculate_kelly,
             commands::predict_with_ml,
             commands::parse_with_llm,
+            commands::get_player_names,
             schedule::fetch_and_predict,
             bets::add_bet,
             bets::get_bets,
