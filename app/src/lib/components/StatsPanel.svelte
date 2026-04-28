@@ -14,7 +14,7 @@
   }
 
   function clv(b: BetRecord): number | null {
-    if (b.closing_odds == null) return null
+    if (b.closing_odds == null || b.closing_odds <= 0) return null
     return 1 / b.closing_odds - 1 / b.odds
   }
 
@@ -101,7 +101,11 @@
   function c3Data(allBets: BetRecord[]) {
     const settled = allBets
       .filter(b => b.result === 'win' || b.result === 'loss')
-      .sort((a, b) => a.date.localeCompare(b.date))
+      .map((b, i) => ({ ...b, idx: i }))
+      .sort((a, b) => {
+        const d = a.date.localeCompare(b.date)
+        return d !== 0 ? d : a.idx - b.idx
+      })
     let cumPnl = 0
     let cumClv = 0
     let hasClv = false
