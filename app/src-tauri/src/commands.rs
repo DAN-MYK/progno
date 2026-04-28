@@ -50,6 +50,7 @@ pub struct PredictResponse {
     pub ml_available: bool,
 }
 
+// Converts elo_state key to display name; handles underscore-separated keys for forward-compatibility.
 pub(crate) fn key_to_display_name(key: &str) -> String {
     key.split('_')
         .map(|w| {
@@ -654,5 +655,29 @@ mod tests {
         let state = json!({ "players": {} });
         let names = players_from_elo_state(&state);
         assert!(names.is_empty());
+    }
+
+    #[test]
+    fn test_players_from_elo_state_boundary_exactly_ten() {
+        let state = json!({
+            "players": {
+                "alcaraz": { "elo_overall": 1800.0, "matches_played": 10 },
+                "sinner":  { "elo_overall": 1700.0, "matches_played": 9 }
+            }
+        });
+        let names = players_from_elo_state(&state);
+        assert_eq!(names, vec!["Alcaraz"]);
+    }
+
+    #[test]
+    fn test_players_from_elo_state_missing_players_key() {
+        let state = json!({ "data_as_of": "2026-04-20" });
+        assert!(players_from_elo_state(&state).is_empty());
+    }
+
+    #[test]
+    fn test_players_from_elo_state_players_is_null() {
+        let state = json!({ "players": null });
+        assert!(players_from_elo_state(&state).is_empty());
     }
 }
