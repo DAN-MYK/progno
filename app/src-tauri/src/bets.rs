@@ -17,6 +17,8 @@ pub struct BetRecord {
     /// "win" | "loss" | "void" — None means pending
     pub result: Option<String>,
     pub pnl: Option<f64>,
+    #[serde(default)]
+    pub closing_odds: Option<f64>,
 }
 
 impl BetRecord {
@@ -58,6 +60,8 @@ fn open(path: &std::path::Path) -> Result<rusqlite::Connection, String> {
         );",
     )
     .map_err(|e| format!("Cannot init bets table: {e}"))?;
+    // Idempotent migration: ignored if column already exists
+    let _ = conn.execute("ALTER TABLE bets ADD COLUMN closing_odds REAL", []);
     Ok(conn)
 }
 
@@ -84,11 +88,11 @@ fn maybe_migrate_json(conn: &rusqlite::Connection, dir: &std::path::Path) {
     for r in &records {
         let _ = conn.execute(
             "INSERT OR IGNORE INTO bets
-             (id,date,player_a,player_b,surface,tournament,bet_on,our_prob,odds,stake,result,pnl)
-             VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)",
+             (id,date,player_a,player_b,surface,tournament,bet_on,our_prob,odds,stake,result,pnl,closing_odds)
+             VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13)",
             rusqlite::params![
                 r.id, r.date, r.player_a, r.player_b, r.surface, r.tournament,
-                r.bet_on, r.our_prob, r.odds, r.stake, r.result, r.pnl,
+                r.bet_on, r.our_prob, r.odds, r.stake, r.result, r.pnl, r.closing_odds,
             ],
         );
     }
@@ -97,18 +101,19 @@ fn maybe_migrate_json(conn: &rusqlite::Connection, dir: &std::path::Path) {
 
 fn row_to_bet(row: &rusqlite::Row<'_>) -> rusqlite::Result<BetRecord> {
     Ok(BetRecord {
-        id:         row.get(0)?,
-        date:       row.get(1)?,
-        player_a:   row.get(2)?,
-        player_b:   row.get(3)?,
-        surface:    row.get(4)?,
-        tournament: row.get(5)?,
-        bet_on:     row.get(6)?,
-        our_prob:   row.get(7)?,
-        odds:       row.get(8)?,
-        stake:      row.get(9)?,
-        result:     row.get(10)?,
-        pnl:        row.get(11)?,
+        id:           row.get(0)?,
+        date:         row.get(1)?,
+        player_a:     row.get(2)?,
+        player_b:     row.get(3)?,
+        surface:      row.get(4)?,
+        tournament:   row.get(5)?,
+        bet_on:       row.get(6)?,
+        our_prob:     row.get(7)?,
+        odds:         row.get(8)?,
+        stake:        row.get(9)?,
+        result:       row.get(10)?,
+        pnl:          row.get(11)?,
+        closing_odds: row.get(12)?,
     })
 }
 
@@ -119,12 +124,12 @@ pub fn add_bet(record: BetRecord, app_handle: tauri::AppHandle) -> Result<BetRec
     maybe_migrate_json(&conn, path.parent().unwrap_or(std::path::Path::new(".")));
     conn.execute(
         "INSERT OR REPLACE INTO bets
-         (id,date,player_a,player_b,surface,tournament,bet_on,our_prob,odds,stake,result,pnl)
-         VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)",
+         (id,date,player_a,player_b,surface,tournament,bet_on,our_prob,odds,stake,result,pnl,closing_odds)
+         VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13)",
         rusqlite::params![
             record.id, record.date, record.player_a, record.player_b,
             record.surface, record.tournament, record.bet_on, record.our_prob,
-            record.odds, record.stake, record.result, record.pnl,
+            record.odds, record.stake, record.result, record.pnl, record.closing_odds,
         ],
     )
     .map_err(|e| format!("Failed to insert bet: {e}"))?;
@@ -139,7 +144,7 @@ pub fn get_bets(app_handle: tauri::AppHandle) -> Result<Vec<BetRecord>, String> 
     let mut stmt = conn
         .prepare(
             "SELECT id,date,player_a,player_b,surface,tournament,bet_on,
-                    our_prob,odds,stake,result,pnl
+                    our_prob,odds,stake,result,pnl,closing_odds
              FROM bets ORDER BY date DESC, rowid DESC",
         )
         .map_err(|e| format!("prepare: {e}"))?;
@@ -168,7 +173,7 @@ pub fn update_bet_result(
         id: id.clone(), date: String::new(), player_a: String::new(),
         player_b: String::new(), surface: String::new(), tournament: None,
         bet_on: String::new(), our_prob: 0.0, odds, stake,
-        result: Some(result.clone()), pnl: None,
+        result: Some(result.clone()), pnl: None, closing_odds: None,
     };
     dummy.pnl = dummy.computed_pnl();
     conn.execute(
@@ -216,6 +221,7 @@ mod tests {
             stake: 50.0,
             result: result.map(str::to_string),
             pnl: None,
+            closing_odds: None,
         }
     }
 
@@ -261,12 +267,13 @@ mod tests {
             ],
         ).unwrap();
         let mut stmt = conn.prepare(
-            "SELECT id,date,player_a,player_b,surface,tournament,bet_on,our_prob,odds,stake,result,pnl FROM bets"
+            "SELECT id,date,player_a,player_b,surface,tournament,bet_on,our_prob,odds,stake,result,pnl,closing_odds FROM bets"
         ).unwrap();
         let loaded: Vec<BetRecord> = stmt.query_map([], row_to_bet).unwrap()
             .collect::<Result<_, _>>().unwrap();
         assert_eq!(loaded.len(), 1);
         assert_eq!(loaded[0].id, "abc");
+        assert_eq!(loaded[0].closing_odds, None);
     }
 
     #[test]
@@ -301,5 +308,50 @@ mod tests {
 
         let count: i64 = conn.query_row("SELECT COUNT(*) FROM bets", [], |r| r.get(0)).unwrap();
         assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn test_closing_odds_round_trip() {
+        let dir = TempDir::new().unwrap();
+        let conn = tmp_conn(dir.path());
+        let mut bet = make_bet("co1", None);
+        bet.closing_odds = Some(1.75);
+        conn.execute(
+            "INSERT INTO bets (id,date,player_a,player_b,surface,tournament,bet_on,our_prob,odds,stake,result,pnl,closing_odds)
+             VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13)",
+            rusqlite::params![
+                bet.id, bet.date, bet.player_a, bet.player_b, bet.surface,
+                bet.tournament, bet.bet_on, bet.our_prob, bet.odds, bet.stake,
+                bet.result, bet.pnl, bet.closing_odds,
+            ],
+        ).unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT id,date,player_a,player_b,surface,tournament,bet_on,our_prob,odds,stake,result,pnl,closing_odds FROM bets"
+        ).unwrap();
+        let loaded: Vec<BetRecord> = stmt.query_map([], row_to_bet).unwrap()
+            .collect::<Result<_, _>>().unwrap();
+        assert_eq!(loaded[0].closing_odds, Some(1.75));
+    }
+
+    #[test]
+    fn test_closing_odds_null_round_trip() {
+        let dir = TempDir::new().unwrap();
+        let conn = tmp_conn(dir.path());
+        let bet = make_bet("co2", None);
+        conn.execute(
+            "INSERT INTO bets (id,date,player_a,player_b,surface,tournament,bet_on,our_prob,odds,stake,result,pnl,closing_odds)
+             VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13)",
+            rusqlite::params![
+                bet.id, bet.date, bet.player_a, bet.player_b, bet.surface,
+                bet.tournament, bet.bet_on, bet.our_prob, bet.odds, bet.stake,
+                bet.result, bet.pnl, bet.closing_odds,
+            ],
+        ).unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT id,date,player_a,player_b,surface,tournament,bet_on,our_prob,odds,stake,result,pnl,closing_odds FROM bets"
+        ).unwrap();
+        let loaded: Vec<BetRecord> = stmt.query_map([], row_to_bet).unwrap()
+            .collect::<Result<_, _>>().unwrap();
+        assert_eq!(loaded[0].closing_odds, None);
     }
 }
