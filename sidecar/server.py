@@ -6,6 +6,7 @@ import argparse
 import json
 import socket
 import sys
+import threading
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -27,6 +28,7 @@ _elo_state: dict[str, dict] = {"atp": {}, "wta": {}}
 _name_to_pid: dict[str, dict[str, int]] = {"atp": {}, "wta": {}}
 _model_card: dict[str, dict] = {"atp": {}, "wta": {}}
 _port: int = 0
+_models_ready = threading.Event()
 
 _CAT_FEATURES = {"surface", "tourney_level", "round"}
 
@@ -131,7 +133,8 @@ class PredictResponse(BaseModel):
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "tours_loaded": [t for t, m in _models.items() if m is not None]}
+    status = "ready" if _models_ready.is_set() else "loading"
+    return {"status": status, "tours_loaded": [t for t, m in _models.items() if m is not None]}
 
 
 @app.get("/model_info")
@@ -144,6 +147,8 @@ async def model_info():
 
 @app.post("/predict")
 async def predict(req: PredictRequest) -> PredictResponse:
+    if not _models_ready.is_set():
+        raise HTTPException(503, "Models still loading")
     results = []
     for m in req.matches:
         tour = m.tour
@@ -195,10 +200,14 @@ def main() -> None:
     args = parser.parse_args()
 
     root = Path(args.artifacts_root)
-    for tour in ("atp", "wta"):
-        _load_tour(root, tour)
-
     _port = _find_free_port()
+
+    def _load_all() -> None:
+        for tour in ("atp", "wta"):
+            _load_tour(root, tour)
+        _models_ready.set()
+
+    threading.Thread(target=_load_all, daemon=True).start()
     uvicorn.run(app, host="127.0.0.1", port=_port, log_level="error")
 
 

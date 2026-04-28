@@ -72,6 +72,9 @@ async fn do_spawn(app: &tauri::AppHandle, artifacts_root: &str) -> anyhow::Resul
                     return Ok((port_str.parse()?, child));
                 }
             }
+            CommandEvent::Stderr(line) => {
+                eprintln!("[sidecar stderr] {}", String::from_utf8_lossy(&line));
+            }
             CommandEvent::Terminated(status) => {
                 return Err(anyhow::anyhow!("sidecar exited: {:?}", status));
             }
