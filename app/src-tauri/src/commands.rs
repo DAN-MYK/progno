@@ -50,6 +50,37 @@ pub struct PredictResponse {
     pub ml_available: bool,
 }
 
+pub(crate) fn key_to_display_name(key: &str) -> String {
+    key.split('_')
+        .map(|w| {
+            let mut c = w.chars();
+            match c.next() {
+                None => String::new(),
+                Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+pub(crate) fn players_from_elo_state(state: &serde_json::Value) -> Vec<String> {
+    let players = match state.get("players").and_then(|p| p.as_object()) {
+        Some(p) => p,
+        None => return vec![],
+    };
+    let mut entries: Vec<(&str, f64)> = players
+        .iter()
+        .filter_map(|(key, val)| {
+            let matches_played = val.get("matches_played")?.as_u64()?;
+            if matches_played < 10 { return None; }
+            let elo_overall = val.get("elo_overall")?.as_f64()?;
+            Some((key.as_str(), elo_overall))
+        })
+        .collect();
+    entries.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+    entries.iter().map(|(key, _)| key_to_display_name(key)).collect()
+}
+
 pub fn predict_text(text: &str, elo_state: &serde_json::Value) -> PredictResponse {
     let matches = match parse_match_text(text) {
         Ok(m) => m,
@@ -576,5 +607,52 @@ mod tests {
             other => other.to_string(),
         };
         assert_eq!(flag, "insufficient_data");
+    }
+
+    #[test]
+    fn test_key_to_display_name_single() {
+        assert_eq!(key_to_display_name("alcaraz"), "Alcaraz");
+    }
+
+    #[test]
+    fn test_key_to_display_name_underscore() {
+        assert_eq!(key_to_display_name("del_potro"), "Del Potro");
+    }
+
+    #[test]
+    fn test_key_to_display_name_single_char_suffix() {
+        assert_eq!(key_to_display_name("murray_a"), "Murray A");
+    }
+
+    #[test]
+    fn test_players_from_elo_state_filters_low_matches() {
+        let state = json!({
+            "players": {
+                "alcaraz": { "elo_overall": 2300.0, "matches_played": 50 },
+                "unknown": { "elo_overall": 1500.0, "matches_played": 3 }
+            }
+        });
+        let names = players_from_elo_state(&state);
+        assert_eq!(names, vec!["Alcaraz"]);
+    }
+
+    #[test]
+    fn test_players_from_elo_state_sorted_by_elo() {
+        let state = json!({
+            "players": {
+                "alcaraz": { "elo_overall": 2300.0, "matches_played": 50 },
+                "sinner":  { "elo_overall": 2400.0, "matches_played": 100 },
+                "medvedev":{ "elo_overall": 2200.0, "matches_played": 80 }
+            }
+        });
+        let names = players_from_elo_state(&state);
+        assert_eq!(names, vec!["Sinner", "Alcaraz", "Medvedev"]);
+    }
+
+    #[test]
+    fn test_players_from_elo_state_empty() {
+        let state = json!({ "players": {} });
+        let names = players_from_elo_state(&state);
+        assert!(names.is_empty());
     }
 }
