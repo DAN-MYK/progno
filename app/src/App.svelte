@@ -36,7 +36,7 @@
   function isDataStale(dateStr: string): boolean {
     if (!dateStr || dateStr === 'unknown') return false
     const asOf = new Date(dateStr)
-    return (Date.now() - asOf.getTime()) / 86_400_000 > 14
+    return (Date.now() - asOf.getTime()) / 86_400_000 > 365
   }
 </script>
 
