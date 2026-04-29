@@ -1,16 +1,5 @@
 <script lang="ts">
-  import { invoke } from '@tauri-apps/api/core'
   import { bets, type BetRecord } from '../stores'
-  import { onMount } from 'svelte'
-
-  onMount(async () => {
-    try {
-      const loaded = await invoke<BetRecord[]>('get_bets')
-      bets.set(loaded)
-    } catch (e) {
-      console.error('Failed to load bets:', e)
-    }
-  })
 
   let filterResult = $state<'all' | 'pending' | 'win' | 'loss'>('all')
 
@@ -22,7 +11,7 @@
         : $bets.filter(b => b.result === filterResult)
   )
 
-  function betClv(b: BetRecord): number {
+  function betEdge(b: BetRecord): number {
     return b.our_prob - 1 / b.odds
   }
 
@@ -32,9 +21,9 @@
     const totalPnl = $bets.reduce((s, b) => s + (b.pnl ?? 0), 0)
     const totalStake = settled.reduce((s, b) => s + b.stake, 0)
     const roi = totalStake > 0 ? (totalPnl / totalStake) * 100 : 0
-    const clvSum = $bets.reduce((s, b) => s + betClv(b), 0)
-    const meanClv = $bets.length > 0 ? (clvSum / $bets.length) * 100 : 0
-    return { total: $bets.length, settled: settled.length, wins, totalPnl, roi, meanClv }
+    const edgeSum = $bets.reduce((s, b) => s + betEdge(b), 0)
+    const meanEdge = $bets.length > 0 ? (edgeSum / $bets.length) * 100 : 0
+    return { total: $bets.length, settled: settled.length, wins, totalPnl, roi, meanEdge }
   })
 
   let surfaceStats = $derived.by(() => {
@@ -54,15 +43,15 @@
   })
 
   let monthStats = $derived.by(() => {
-    const map = new Map<string, { pnl: number; stake: number; n: number; clvSum: number }>()
+    const map = new Map<string, { pnl: number; stake: number; n: number; edgeSum: number }>()
     for (const b of $bets) {
       if (!b.result || b.result === 'void') continue
       const month = b.date.slice(0, 7) // YYYY-MM
-      const cur = map.get(month) ?? { pnl: 0, stake: 0, n: 0, clvSum: 0 }
+      const cur = map.get(month) ?? { pnl: 0, stake: 0, n: 0, edgeSum: 0 }
       cur.pnl += b.pnl ?? 0
       cur.stake += b.stake
       cur.n++
-      cur.clvSum += betClv(b)
+      cur.edgeSum += betEdge(b)
       map.set(month, cur)
     }
     return [...map.entries()]
@@ -71,7 +60,7 @@
         roi: d.stake > 0 ? (d.pnl / d.stake) * 100 : 0,
         pnl: d.pnl,
         n: d.n,
-        meanClv: d.n > 0 ? (d.clvSum / d.n) * 100 : 0,
+        meanEdge: d.n > 0 ? (d.edgeSum / d.n) * 100 : 0,
       }))
       .sort((a, b) => a.month.localeCompare(b.month))
   })
@@ -131,10 +120,10 @@
       <span
         class="font-semibold"
         title="Mean edge (our prob − implied prob) at bet time"
-        class:text-green-700={s.meanClv >= 0}
-        class:text-red-700={s.meanClv < 0}
+        class:text-green-700={s.meanEdge >= 0}
+        class:text-red-700={s.meanEdge < 0}
       >
-        Edge: {s.meanClv >= 0 ? '+' : ''}{s.meanClv.toFixed(1)}%
+        Edge: {s.meanEdge >= 0 ? '+' : ''}{s.meanEdge.toFixed(1)}%
       </span>
     </div>
   {/if}
@@ -191,10 +180,10 @@
             <td class="px-4 py-2 text-right">{Math.round(bet.our_prob * 1000) / 10}%</td>
             <td
               class="px-4 py-2 text-right font-medium"
-              class:text-green-700={betClv(bet) >= 0}
-              class:text-red-700={betClv(bet) < 0}
+              class:text-green-700={betEdge(bet) >= 0}
+              class:text-red-700={betEdge(bet) < 0}
             >
-              {betClv(bet) >= 0 ? '+' : ''}{Math.round(betClv(bet) * 1000) / 10}%
+              {betEdge(bet) >= 0 ? '+' : ''}{Math.round(betEdge(bet) * 1000) / 10}%
             </td>
             <td class="px-4 py-2 text-right">{bet.odds.toFixed(2)}</td>
             <td class="px-4 py-2 text-right">${bet.stake.toFixed(2)}</td>
@@ -273,7 +262,7 @@
 
 {#if monthStats.length > 0}
   <div class="p-4 border-t border-gray-100 overflow-x-auto">
-    <h3 class="text-xs font-semibold text-gray-600 mb-2">CLV by Month</h3>
+    <h3 class="text-xs font-semibold text-gray-600 mb-2">Model Edge by Month</h3>
     <table class="w-full text-xs">
       <thead>
         <tr class="text-left text-gray-500 border-b border-gray-200">
@@ -301,9 +290,9 @@
             >{m.roi >= 0 ? '+' : ''}{m.roi.toFixed(1)}%</td>
             <td
               class="py-1 text-right font-medium"
-              class:text-green-700={m.meanClv >= 0}
-              class:text-red-700={m.meanClv < 0}
-            >{m.meanClv >= 0 ? '+' : ''}{m.meanClv.toFixed(1)}%</td>
+              class:text-green-700={m.meanEdge >= 0}
+              class:text-red-700={m.meanEdge < 0}
+            >{m.meanEdge >= 0 ? '+' : ''}{m.meanEdge.toFixed(1)}%</td>
           </tr>
         {/each}
       </tbody>

@@ -11,7 +11,7 @@
   $effect(() => {
     invoke<BetRecord[]>('get_bets')
       .then(records => bets.set(records))
-      .catch(() => {})
+      .catch(e => console.error('[bets] startup load failed:', e))
   })
 
   let activeTab = $state<'predict' | 'history' | 'schedule' | 'stats'>('predict')
